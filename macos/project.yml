@@ -1,0 +1,54 @@
+# XcodeGen spec for Rex Radar: the menu bar app and its desktop widget.
+# scripts/build.sh generates RexRadar.xcodeproj from it; the project isn't checked in.
+# DEVELOPMENT_TEAM comes from the environment (your Apple Development team ID).
+name: RexRadar
+options:
+  bundleIdPrefix: house.milapan
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+    CODE_SIGN_STYLE: Automatic
+    APP_GROUP: "$(DEVELOPMENT_TEAM).house.milapan.rex-radar"
+    ENABLE_HARDENED_RUNTIME: YES
+    GENERATE_INFOPLIST_FILE: NO
+    DEAD_CODE_STRIPPING: YES
+targets:
+  RexRadar:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/RexRadar
+      - path: Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar
+        PRODUCT_NAME: RexRadar
+        INFOPLIST_FILE: Resources/RexRadar-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/RexRadar.entitlements
+    dependencies:
+      - target: RexRadarWidget
+        embed: true
+        codeSign: true
+  RexRadarWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Sources/RexRadarWidget
+      - path: Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.widget
+        PRODUCT_NAME: RexRadarWidget
+        INFOPLIST_FILE: Resources/RexRadarWidget-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/RexRadarWidget.entitlements
+        SKIP_INSTALL: YES
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework

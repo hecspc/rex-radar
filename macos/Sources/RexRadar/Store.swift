@@ -1,9 +1,12 @@
 import Foundation
 import Combine
+import WidgetKit
 
 /// Reads every watcher's snapshot every couple of seconds.
 @MainActor
 final class Store: ObservableObject {
+  static let shared = Store()
+
   @Published private(set) var rows: [Row] = []
   @Published private(set) var sources: [String] = []
   @Published private(set) var lastError: String?
@@ -51,6 +54,15 @@ final class Store: ObservableObject {
     }
   }
 
+  /// Opens the row a widget link names: rexradar://open?id=<row id>.
+  func handle(_ url: URL) {
+    guard url.scheme == "rexradar", url.host == "open",
+      let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "id" })?.value
+    else { return }
+    reload()
+    if let row = rows.first(where: { $0.id == id }) { open(row) }
+  }
+
   func reload() {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -79,5 +91,7 @@ final class Store: ObservableObject {
     }
     self.sources = sources.sorted()
     self.lastError = errors.first
+    // Hand the rows to the widget, and wake it only when they changed.
+    if SharedState.write(self.rows) { WidgetCenter.shared.reloadAllTimelines() }
   }
 }

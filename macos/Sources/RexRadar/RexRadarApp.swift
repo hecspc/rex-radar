@@ -3,7 +3,8 @@ import SwiftUI
 
 @main
 struct RexRadarApp: App {
-  @StateObject private var store = Store()
+  @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+  @StateObject private var store = Store.shared
 
   init() {
     if let dir = Render.directory {
@@ -35,5 +36,12 @@ struct MenuBarLabel: View {
       Image(nsImage: MenuIcon.image(alert: count > 0))
       if count > 0 { Text("\(count)") }
     }
+  }
+}
+
+/// Widget taps arrive as rexradar:// URLs.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+  func application(_ application: NSApplication, open urls: [URL]) {
+    MainActor.assumeIsolated { urls.forEach(Store.shared.handle) }
   }
 }
