@@ -93,20 +93,26 @@ bin/rex-radar open 2 --client vv-macbook   # only in the app labelled vv-macbook
 Verified 2026-10-24 on Rex build 1408 with Claude Code 2.1.310: idle → working → done with the summary, a session
 rename picked up live, and `open` switching the Mac app to the pane's tab. Not yet tried: a second server.
 
-### macOS menu bar app
+### macOS app and widget
 
-`macos/` is a SwiftUI menu-bar app over the same snapshots. Builds with Apple's command-line tools only (no
-Xcode), so it avoids SwiftUI's macros (`@State`, `@Observable`): their plugins ship only with Xcode.
+`macos/` is a SwiftUI menu bar app with a window and a desktop widget, over the same snapshots.
 
 ```sh
-macos/bundle.sh --install    # → ~/Applications/RexRadar.app, menu bar only, ad-hoc signed
+DEVELOPMENT_TEAM=<team id> macos/scripts/build.sh --install   # app + widget, Xcode, signed
+macos/bundle.sh --install                                     # app only, command-line tools, ad-hoc signed
 ```
 
-- Icon: the most urgent live state (blocked › error › done › working), with a count of agents that want you.
-- Panel: every agent pane, most urgent first, stale watchers dimmed. Click a row to show it in your Rex app.
-- It switches only the Rex app labelled with this Mac's name (`Host.current().localizedName`). Override:
-  `defaults write house.milapan.rex-radar clientLabel <label>`.
-- It runs `rex` from the Rex app's bundle, since a GUI app's PATH doesn't have it (`REX_BIN` overrides).
+- **Menu bar**: Rex's own dino (loaded from the installed Rex app at run time) over a round radar; a blip and a
+  count when agents want you.
+- **Panel** (Liquid Glass): the most urgent agent as a card with **Open in Rex**, the others in a card per server.
+- **Window**: a server sidebar and a card per agent.
+- **Widget** (small, medium, large): agents by urgency; tap one to open it in Rex (`rexradar://open?id=…`).
+  The sandboxed widget can't read the snapshots, so the app copies the merged rows into the App Group
+  `<team>.house.milapan.rex-radar` and reloads the widget when they change.
+- **Open in Rex** switches the Rex app labelled with this Mac's name (`defaults write house.milapan.rex-radar
+  clientLabel <label>` to change it), then brings Rex to the front.
+- The team ID is the `OU` of your Apple Development certificate. A free Personal Team is enough to run it on your
+  own Mac.
 
 ## Risks
 
