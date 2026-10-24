@@ -32,7 +32,7 @@ struct MenuBarLabel: View {
   var body: some View {
     let count = store.attentionCount
     HStack(spacing: 3) {
-      Image(systemName: store.topState?.symbol ?? "dot.radiowaves.left.and.right")
+      Image(nsImage: MenuIcon.image(alert: count > 0))
       if count > 0 { Text("\(count)") }
     }
   }
