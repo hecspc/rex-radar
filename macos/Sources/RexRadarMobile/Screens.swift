@@ -52,7 +52,7 @@ struct AgentsScreen: View {
           .font(.callout.weight(.medium))
           .padding(.horizontal, 16)
           .padding(.vertical, 10)
-          .glassEffect(.regular, in: .capsule)
+          .glassBackground(in: Capsule())
           .padding(.bottom, 24)
           .transition(.move(edge: .bottom).combined(with: .opacity))
       }
@@ -78,7 +78,7 @@ struct AgentList: View {
 
   var body: some View {
     ScrollView {
-      GlassEffectContainer(spacing: 14) {
+      GlassGroup(spacing: 14) {
         VStack(spacing: 14) {
           ForEach(client.hubs.filter { client.errors[$0.id] != nil }) { hub in
             Label("\(hub.name): \(client.errors[hub.id] ?? "")", systemImage: "wifi.exclamationmark")
@@ -109,7 +109,7 @@ struct PairScreen: View {
 
   var body: some View {
     ScrollView {
-      GlassEffectContainer(spacing: 16) {
+      GlassGroup(spacing: 16) {
         VStack(alignment: .leading, spacing: 16) {
           VStack(alignment: .leading, spacing: 6) {
             Image(systemName: "dot.radiowaves.left.and.right").font(.largeTitle).foregroundStyle(.tint)
@@ -158,7 +158,7 @@ struct ManualPairForm: View {
           host = ""
           token = ""
         }
-        .buttonStyle(.glassProminent)
+        .glassProminentButtonStyle()
         .disabled(host.isEmpty || token.isEmpty)
       }
     }

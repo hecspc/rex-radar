@@ -25,7 +25,7 @@ struct GlassCard<Content: View>: View {
     content
       .padding(padding)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .glassEffect(.regular, in: .rect(cornerRadius: 18))
+      .glassBackground(in: RoundedRectangle(cornerRadius: 18))
   }
 }
 
@@ -39,7 +39,7 @@ struct CircleButton: View {
     Button(action: action) {
       Image(systemName: symbol).font(.body.weight(.medium)).frame(width: 30, height: 30)
     }
-    .buttonStyle(.glass)
+    .glassButtonStyle()
     .buttonBorderShape(.circle)
     .help(help)
   }
@@ -72,7 +72,7 @@ struct HeroCard: View {
         Button(action: open) {
           Label("Open in Rex", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity)
         }
-        .buttonStyle(.glass)
+        .glassButtonStyle()
         .controlSize(.large)
       }
     }
