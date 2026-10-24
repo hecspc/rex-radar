@@ -21,7 +21,7 @@ struct Snapshot: Decodable {
   }
 }
 
-struct Pane: Decodable, Identifiable {
+struct Pane: Codable, Identifiable, Hashable {
   var sessionId: String
   var session: String?
   var windowId: String
@@ -38,7 +38,7 @@ struct Pane: Decodable, Identifiable {
   var id: String { blockId }
 }
 
-enum AgentState: Int, Comparable {
+enum AgentState: Int, Comparable, Codable {
   case blocked = 1, error, done, working, idle, unknown
 
   init(_ raw: String) {
@@ -70,7 +70,7 @@ enum AgentState: Int, Comparable {
 }
 
 /// A pane as shown: its snapshot's source and server, and whether that watcher went quiet.
-struct Row: Identifiable {
+struct Row: Codable, Identifiable, Hashable {
   var pane: Pane
   var source: String
   var server: String?
