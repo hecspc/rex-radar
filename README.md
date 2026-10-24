@@ -150,7 +150,8 @@ phone open agents in the Mac's Rex.
   and **Open on Mac**.
 - **Complications**: circular (count), rectangular (most urgent agent), corner and inline, from the watch's App Group
   `group.house.milapan.rex-radar.watch`.
-- Tested in the watchOS 27 simulator (list and agent page with live data); not yet on a real watch.
+- Verified 2026-10-25 on an Apple Watch Series 10 (watchOS 27.0.1): list, agent page and answering. Install it
+  on a real watch after pairing it in Xcode 27's DeviceHub (+ → Pair Nearby Device) with Developer Mode on.
 
 ### Answering Claude's questions
 
