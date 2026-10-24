@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# rex-radar: read the watchers' snapshots and jump to an agent's pane.
+#
+#   rex-radar [list] [--json]   every agent pane on every watched server, most urgent first
+#   rex-radar open <n|block_id> [--client <label>]
+#                               show that pane in a Rex app: the app clients on the
+#                               pane's server (all of them, or the one labelled <label>,
+#                               e.g. your main Mac), via session.select
+#
+# Snapshots come from watcher/rex-radar.lua, one per server, in
+# ${REX_RADAR_DIR:-~/.local/state/rex-radar}/<source>.json. A snapshot older than
+# twice its heartbeat is marked stale: its watcher stopped or the machine sleeps.
+set -euo pipefail
+
+dir="${REX_RADAR_DIR:-$HOME/.local/state/rex-radar}"
+
+rows() {
+  shopt -s nullglob
+  local files=("$dir"/*.json)
+  ((${#files[@]})) || { echo '[]'; return; }
+  jq -s --argjson now "$(date -u +%s)" '
+    def rank: {"blocked":1,"error":2,"done":3,"working":4,"idle":5}[.state] // 9;
+    [ .[] as $s
+      | ($now - ($s.written_at | fromdateiso8601) > 2 * ($s.heartbeat_seconds // 15)) as $stale
+      | $s.panes[] + {server: $s.server, stale: $stale} ]
+    | sort_by(rank, .source, .session, .tab_index)
+    | to_entries | map(.value + {n: (.key + 1)})' "${files[@]}"
+}
+
+list() {
+  if [[ ${1:-} == --json ]]; then rows; return; fi
+  rows | jq -r '
+    def icon: {"blocked":"!","error":"x","done":"✓","working":"…","idle":" "}[.state] // "?";
+    if length == 0 then "no agent panes (is a watcher running?)" else
+    .[] | "\(.n|tostring|.[0:3])  \(icon) \(.state)\(if .kind then "/"+.kind else "" end)\(if .stale then " (stale)" else "" end)" +
+          "\t\(.source) · \(.session) · \(.tab_index). \(.tab)" +
+          "\(if .msg then "\n       " + .msg elif .title and .title != "Claude Code" then "\n       " + .title else "" end)"
+    end'
+}
+
+open_pane() {
+  local target="${1:?usage: rex-radar open <n|block_id> [--client <label>]}"; shift
+  local client_label=""
+  [[ ${1:-} == --client ]] && client_label="${2:?--client needs a label}"
+
+  local row
+  row="$(rows | jq -c --arg t "$target" 'map(select((.n|tostring) == $t or .block_id == $t or (.block_id|endswith($t))))[0] // empty')"
+  [[ -n $row ]] || { echo "rex-radar: no pane $target" >&2; exit 1; }
+
+  local server session window block
+  server="$(jq -r '.server // empty' <<<"$row")"
+  session="$(jq -r .session_id <<<"$row")"
+  window="$(jq -r .window_id <<<"$row")"
+  block="$(jq -r .block_id <<<"$row")"
+  local rexs=(rex)
+  [[ -n $server ]] && rexs+=(-S "$server")
+
+  "${rexs[@]}" api call session.focus_block "$(jq -nc --arg s "$session" --arg b "$block" '{session_id:$s, block_id:$b}')" >/dev/null
+
+  # Each app keeps its own tab in view: ask the app clients to show it.
+  local clients
+  clients="$("${rexs[@]}" api call client.list '{}' | jq -r --arg l "$client_label" '
+    .clients[] | select(.info.kind == "app") | select($l == "" or .info.label == $l or .label == $l) | .client_id')"
+  [[ -n $clients ]] || { echo "rex-radar: no Rex app${client_label:+ labelled $client_label} on that server" >&2; exit 1; }
+  local c
+  for c in $clients; do
+    "${rexs[@]}" api call client.perform "$(jq -nc --arg c "$c" --arg s "$session" --arg w "$window" \
+      '{client_id:$c, session_id:$s, action:"session.select", args:{session_id:$s, window_id:$w}}')" >/dev/null
+  done
+  jq -r '"opened \(.source) · \(.session) · \(.tab_index). \(.tab)"' <<<"$row"
+}
+
+case "${1:-list}" in
+  list) shift || true; list "$@" ;;
+  --json) list --json ;;
+  open) shift; open_pane "$@" ;;
+  -h | --help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) echo "rex-radar: unknown command $1" >&2; exit 2 ;;
+esac
