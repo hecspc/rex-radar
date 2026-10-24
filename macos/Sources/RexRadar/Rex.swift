@@ -1,7 +1,21 @@
-import Foundation
+import AppKit
 
 /// Talks to Rex servers through the `rex` CLI, the only documented client.
 enum Rex {
+  static let appBundleID = "com.superlogical.rex"
+
+  /// Brings this Mac's Rex app to the front. The panel's app is the active one when you click,
+  /// so it hands activation over first; macOS ignores a bare activate() from another app.
+  @MainActor static func activateApp() {
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: appBundleID) else { return }
+    if let running = NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).first {
+      NSApp.yieldActivation(to: running)
+    }
+    let config = NSWorkspace.OpenConfiguration()
+    config.activates = true
+    NSWorkspace.shared.openApplication(at: url, configuration: config)
+  }
+
   /// The app keeps its CLI in a versioned bundle that isn't on a GUI app's PATH.
   static let executable: String? = {
     let fm = FileManager.default

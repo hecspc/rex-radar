@@ -43,6 +43,7 @@ final class Store: ObservableObject {
     Task.detached { [weak self] in
       do {
         try Rex.open(row, clientLabel: label)
+        await MainActor.run { Rex.activateApp() }
       } catch {
         let message = error.localizedDescription
         await MainActor.run { self?.openError = message }
