@@ -16,6 +16,7 @@ enum Render {
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     snap(MenuPanel(store: store), size: nil, to: dir.appendingPathComponent("panel.png"))
     snap(MainWindow(store: store), size: NSSize(width: 860, height: 560), to: dir.appendingPathComponent("window.png"))
+    snap(SettingsView(prefs: .shared), size: nil, to: dir.appendingPathComponent("settings.png"))
     NSApp.terminate(nil)
   }
 

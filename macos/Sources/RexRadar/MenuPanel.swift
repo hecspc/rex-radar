@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuPanel: View {
   @ObservedObject var store: Store
   @Environment(\.openWindow) private var openWindow
+  @Environment(\.openSettings) private var openSettings
 
   var body: some View {
     GlassEffectContainer(spacing: 12) {
@@ -38,6 +39,10 @@ struct MenuPanel: View {
       Spacer()
       CircleButton(symbol: "arrow.clockwise", help: "Reload") { store.reload() }
       CircleButton(symbol: "macwindow", help: "Open Rex Radar") { showWindow() }
+      CircleButton(symbol: "gearshape", help: "Settings") {
+        openSettings()
+        NSApp.activate()
+      }
     }
   }
 

@@ -25,6 +25,10 @@ struct RexRadarApp: App {
       MainWindow(store: store)
     }
     .defaultSize(width: 860, height: 560)
+
+    Settings {
+      SettingsView(prefs: .shared)
+    }
   }
 }
 
