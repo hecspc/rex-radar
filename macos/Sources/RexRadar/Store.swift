@@ -30,6 +30,26 @@ final class Store: ObservableObject {
   var topState: AgentState? { rows.filter { !$0.stale }.map(\.state).min() }
   var attentionCount: Int { rows.filter { !$0.stale && $0.state.needsAttention }.count }
 
+  /// The Rex app to switch: this Mac's, by its device name. Override with
+  /// `defaults write house.milapan.rex-radar clientLabel <label>`.
+  var clientLabel: String {
+    UserDefaults.standard.string(forKey: "clientLabel") ?? Host.current().localizedName ?? ""
+  }
+
+  /// Shows the row's pane in the Rex app, off the main thread (it runs the rex CLI).
+  func open(_ row: Row) {
+    openError = nil
+    let label = clientLabel
+    Task.detached { [weak self] in
+      do {
+        try Rex.open(row, clientLabel: label)
+      } catch {
+        let message = error.localizedDescription
+        await MainActor.run { self?.openError = message }
+      }
+    }
+  }
+
   func reload() {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
