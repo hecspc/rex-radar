@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 
 @main
@@ -45,6 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     MainActor.assumeIsolated {
       HubServer.shared.start()
       Watchers.shared.startAll()
+    }
+    // Start at login, so the watchers and the hub are always running. Once only: if you turn it
+    // off in System Settings → General → Login Items, it stays off.
+    if !UserDefaults.standard.bool(forKey: "loginItemRegistered") {
+      try? SMAppService.mainApp.register()
+      UserDefaults.standard.set(true, forKey: "loginItemRegistered")
     }
   }
 

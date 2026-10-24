@@ -5,7 +5,8 @@ import Network
 /// in this Mac's Rex app: the main server is the Mac this app runs on.
 ///
 ///   GET  /v1/agents          → { host, sources, rows, written_at }
-///   POST /v1/open?id=<row>   → shows that pane in Rex here
+///   POST /v1/open?id=<row>   → shows that pane in Rex here (body: the row, for agents another Mac
+///                              watches on a server this Mac reaches by address)
 ///
 /// Every request needs `Authorization: Bearer <token>`; the token is generated once and shown,
 /// with a pairing QR code, in the window. Advertised over Bonjour as _rexradar._tcp.
@@ -69,7 +70,15 @@ final class HubServer: ObservableObject {
         if let data { buffer.append(data) }
         if let end = buffer.range(of: Data("\r\n\r\n".utf8)) {
           let head = String(decoding: buffer[..<end.lowerBound], as: UTF8.self)
-          self.respond(to: head, on: connection)
+          let length = head.components(separatedBy: "\r\n")
+            .first { $0.lowercased().hasPrefix("content-length:") }
+            .flatMap { Int($0.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)) } ?? 0
+          let body = buffer[end.upperBound...]
+          if body.count >= min(length, 64 * 1024) || done || error != nil {
+            self.respond(to: head, body: Data(body.prefix(length)), on: connection)
+          } else {
+            self.receive(connection, buffer: buffer)
+          }
         } else if done || error != nil || buffer.count > 16 * 1024 {
           connection.cancel()
         } else {
@@ -79,7 +88,7 @@ final class HubServer: ObservableObject {
     }
   }
 
-  private func respond(to head: String, on connection: NWConnection) {
+  private func respond(to head: String, body: Data, on connection: NWConnection) {
     let lines = head.components(separatedBy: "\r\n")
     let parts = (lines.first ?? "").split(separator: " ")
     guard parts.count >= 2 else { return send(connection, 400, ["error": "bad request"]) }
@@ -99,11 +108,19 @@ final class HubServer: ObservableObject {
     case ("POST", "/v1/open"):
       let id = target?.queryItems?.first { $0.name == "id" }?.value
       store.reload()
-      guard let row = store.rows.first(where: { $0.id == id }) else {
-        return send(connection, 404, ["error": "no such agent"])
+      if let row = store.rows.first(where: { $0.id == id }) {
+        store.open(row)
+        return send(connection, 200, ["ok": "true"])
       }
-      store.open(row)
-      send(connection, 200, ["ok": "true"])
+      // An agent another Mac watches, on a Rex server this Mac can reach too (it has an address):
+      // the phone sends the whole row so this Mac, the main one, opens it in its own Rex.
+      let decoder = JSONDecoder()
+      decoder.dateDecodingStrategy = .iso8601
+      if let row = try? decoder.decode(Row.self, from: body), let server = row.server, !server.isEmpty {
+        store.open(row)
+        return send(connection, 200, ["ok": "true"])
+      }
+      send(connection, 404, ["error": "no such agent"])
     default:
       send(connection, 404, ["error": "not found"])
     }

@@ -19,7 +19,7 @@ struct RootView: View {
 
   var body: some View {
     Group {
-      if client.hub == nil {
+      if client.hubs.isEmpty {
         PairScreen(client: client)
       } else {
         AgentsScreen(client: client)
