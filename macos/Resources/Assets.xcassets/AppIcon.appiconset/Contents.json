@@ -7,6 +7,12 @@
       "size" : "1024x1024"
     },
     {
+      "filename" : "ios-1024.png",
+      "idiom" : "universal",
+      "platform" : "watchos",
+      "size" : "1024x1024"
+    },
+    {
       "filename" : "mac-16@1x.png",
       "idiom" : "mac",
       "scale" : "1x",

@@ -138,6 +138,20 @@ phone open agents in the Mac's Rex.
 - Builds with the same project: `xcodebuild -scheme RexRadarMobile …`. In a simulator, pair without the URL prompt
   with `SIMCTL_CHILD_REXRADAR_PAIR='rexradar://pair?…' xcrun simctl launch <sim> house.milapan.rex-radar.ios`.
 
+### Apple Watch
+
+`macos/Sources/RexRadarWatch` is a watchOS app (watchOS 10+) inside the iOS app, with complications.
+
+- **Pairing**: none on the watch. The iPhone app sends its paired Macs (with tokens, main one marked) as the
+  WatchConnectivity application context whenever they change, when the session activates and when the watch app is
+  installed. The watch reuses the iOS `HubClient`, so it fetches, opens and answers exactly like the phone; watchOS
+  routes its requests through the iPhone when it's nearby.
+- **App**: agents most urgent first; an agent's page shows its summary, **Answer** (options only, no free text)
+  and **Open on Mac**.
+- **Complications**: circular (count), rectangular (most urgent agent), corner and inline, from the watch's App Group
+  `group.house.milapan.rex-radar.watch`.
+- Tested in the watchOS 27 simulator (list and agent page with live data); not yet on a real watch.
+
 ### Answering Claude's questions
 
 When Claude asks a question list (its AskUserQuestion tool), Rex Radar shows it as a form (Mac panel, window,

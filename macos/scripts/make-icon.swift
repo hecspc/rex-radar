@@ -142,6 +142,8 @@ func png(size: Int, tile: Bool) -> Data {
 try FileManager.default.createDirectory(atPath: out, withIntermediateDirectories: true)
 var images: [[String: String]] = [["idiom": "universal", "platform": "ios", "size": "1024x1024", "filename": "ios-1024.png"]]
 try png(size: 1024, tile: false).write(to: URL(fileURLWithPath: "\(out)/ios-1024.png"))
+// watchOS crops it to a circle itself: the same full-bleed artwork.
+images.append(["idiom": "universal", "platform": "watchos", "size": "1024x1024", "filename": "ios-1024.png"])
 for pt in [16, 32, 128, 256, 512] {
   for scale in [1, 2] {
     let name = "mac-\(pt)@\(scale)x.png"

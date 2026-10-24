@@ -19,6 +19,8 @@ struct AgentsWidget: Widget {
   private var families: [WidgetFamily] {
     #if os(iOS)
       [.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline]
+    #elseif os(watchOS)
+      [.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner]
     #else
       [.systemSmall, .systemMedium, .systemLarge]
     #endif
@@ -74,15 +76,27 @@ struct AgentsView: View {
   @Environment(\.widgetFamily) private var family
 
   var body: some View {
-    switch family {
-    case .systemSmall: small
-    #if os(iOS)
+    #if os(watchOS)
+      // Watch faces have only the accessory shapes.
+      switch family {
       case .accessoryCircular: circular
       case .accessoryRectangular: rectangular
-      case .accessoryInline: inline
+      case .accessoryCorner:
+        Image(systemName: "dot.radiowaves.left.and.right")
+          .widgetLabel { Text(entry.attention > 0 ? "\(entry.attention) waiting" : "Quiet") }
+      default: inline
+      }
+    #else
+      switch family {
+      case .systemSmall: small
+      #if os(iOS)
+        case .accessoryCircular: circular
+        case .accessoryRectangular: rectangular
+        case .accessoryInline: inline
+      #endif
+      default: list(limit: family == .systemLarge ? 7 : 3)
+      }
     #endif
-    default: list(limit: family == .systemLarge ? 7 : 3)
-    }
   }
 
   private var header: some View {
@@ -137,8 +151,8 @@ struct AgentsView: View {
     }
   }
 
-  #if os(iOS)
-    /// Lock Screen: how many agents want you, around the radar glyph.
+  #if os(iOS) || os(watchOS)
+    /// Lock Screen and watch face: how many agents want you, around the radar glyph.
     private var circular: some View {
       ZStack {
         AccessoryWidgetBackground()

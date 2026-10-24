@@ -102,6 +102,22 @@ final class HubClient {
     Task { await refresh() }
   }
 
+  /// The Apple Watch app's pairing: mirrors the Macs the iPhone sent, main one included.
+  func sync(_ shared: WidgetHubs) {
+    var updated: [Hub] = []
+    for entry in shared.hubs {
+      var hub = Hub(name: entry.name, host: entry.host, port: entry.port)
+      if let existing = hubs.first(where: { $0.name == entry.name }) { hub.id = existing.id }
+      Keychain.write(entry.token, for: hub.id)
+      updated.append(hub)
+    }
+    for gone in hubs where !updated.contains(where: { $0.id == gone.id }) { Keychain.write(nil, for: gone.id) }
+    hubs = updated
+    mainID = zip(shared.hubs, updated).first { $0.0.isMain }?.1.id ?? updated.first?.id
+    save()
+    Task { await refresh() }
+  }
+
   func setMain(_ hub: Hub) {
     mainID = hub.id
     save()
@@ -148,7 +164,11 @@ final class HubClient {
       guard let token = Keychain.read(for: hub.id) else { return nil }
       return .init(name: hub.name, host: hub.host, port: hub.port, token: token, isMain: hub.id == main?.id)
     }
-    let hubsChanged = WidgetHubs.write(WidgetHubs(hubs: entries))
+    let shared = WidgetHubs(hubs: entries)
+    let hubsChanged = WidgetHubs.write(shared)
+    #if os(iOS)
+      if hubsChanged { WatchSync.shared.send(shared) }
+    #endif
     let rowsChanged = SharedState.write(agents.map(\.row))
     if hubsChanged || rowsChanged { WidgetCenter.shared.reloadAllTimelines() }
   }

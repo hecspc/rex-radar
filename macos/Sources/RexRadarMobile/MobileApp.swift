@@ -5,6 +5,8 @@ import UIKit
 struct RexRadarMobileApp: App {
   @State private var client = HubClient()
 
+  init() { WatchSync.shared.activate() }
+
   var body: some Scene {
     WindowGroup {
       RootView(client: client)

@@ -7,6 +7,7 @@ options:
   deploymentTarget:
     macOS: "26.0"
     iOS: "17.0"
+    watchOS: "10.0"
   createIntermediateGroups: true
 settings:
   base:
@@ -77,6 +78,9 @@ targets:
       - target: RexRadarMobileWidget
         embed: true
         codeSign: true
+      - target: RexRadarWatch
+        embed: true
+        codeSign: true
   RexRadarMobileWidget:
     type: app-extension
     platform: iOS
@@ -90,6 +94,47 @@ targets:
         INFOPLIST_FILE: Resources/RexRadarMobileWidget-Info.plist
         CODE_SIGN_ENTITLEMENTS: Resources/RexRadarMobileWidget.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_HARDENED_RUNTIME: NO
+        SKIP_INSTALL: YES
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+  RexRadarWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: Sources/RexRadarWatch
+      - path: Sources/RexRadarMobile/HubClient.swift
+      - path: Sources/Shared
+        excludes:
+          - QuestionsForm.swift
+      - path: Resources/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.ios.watchkitapp
+        PRODUCT_NAME: RexRadarWatch
+        INFOPLIST_FILE: Resources/RexRadarWatch-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/RexRadarWatch.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_HARDENED_RUNTIME: NO
+    dependencies:
+      - target: RexRadarWatchWidget
+        embed: true
+        codeSign: true
+  RexRadarWatchWidget:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: Sources/RexRadarWidget
+      - path: Sources/Shared
+        excludes:
+          - QuestionsForm.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.ios.watchkitapp.widget
+        PRODUCT_NAME: RexRadarWatchWidget
+        INFOPLIST_FILE: Resources/RexRadarWatchWidget-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/RexRadarWatchWidget.entitlements
         ENABLE_HARDENED_RUNTIME: NO
         SKIP_INSTALL: YES
     dependencies:
