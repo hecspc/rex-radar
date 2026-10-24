@@ -1,7 +1,6 @@
 import AppKit
 
-/// The menu bar glyph: Rex's own menu bar dino, smaller and in the bottom-left corner, in front of
-/// a radar whose waves spread up and to the right behind it.
+/// The menu bar glyph: Rex's own menu bar dino, in front, over a round radar screen behind it.
 ///
 /// The dino is loaded at run time from the installed Rex app (`MenubarIcon1`), so none of
 /// Superlogical's artwork is copied here; without Rex it draws the radar alone.
@@ -21,45 +20,54 @@ enum MenuIcon {
     }
   }()
 
-  // Where the dino sits: about 70 %, in the bottom-left corner.
-  private static let dinoRect = NSRect(x: 0, y: 5.4, width: 12.6, height: 12.6)
-  // The radar's centre: the dino's head.
-  private static let center = NSPoint(x: 6.2, y: 11.5)
-  private static let radii: [CGFloat] = [8.0, 11.0, 14.0]
+  // The icon is a little wider than tall, so the round radar fits beside the dino.
+  static let size = NSSize(width: 20, height: 18)
+  // The dino: bottom left, in front, overlapping the radar's lower-left edge.
+  private static let dinoRect = NSRect(x: 0, y: 3.6, width: 14.4, height: 14.4)
+  // The radar screen: a round scope in the top right, behind the dino.
+  private static let center = NSPoint(x: 12.4, y: 7.6)
+  private static let outer: CGFloat = 7.2
+  private static let inner: CGFloat = 3.9
 
   static func image(alert: Bool) -> NSImage {
-    let image = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { rect in
+    let image = NSImage(size: size, flipped: true) { rect in
       NSGraphicsContext.current?.cgContext.clip(to: rect)
-      // The radar is background: half strength. The blip stays full strength.
-      NSColor.black.withAlphaComponent(0.5).set()
-
-      // The radar: quarter arcs up and to the right of the dino, and the sweep.
-      for r in radii {
-        let arc = NSBezierPath()
-        arc.appendArc(withCenter: center, radius: r, startAngle: -90, endAngle: 0)
-        arc.lineWidth = 1.2
-        arc.lineCapStyle = .round
-        arc.stroke()
+      // The radar is background: lighter than the dino. The blip stays full strength.
+      let ink = NSColor.black.withAlphaComponent(0.6)
+      ink.set()
+      for r in [outer, inner] {
+        let ring = NSBezierPath(ovalIn: NSRect(x: center.x - r, y: center.y - r, width: 2 * r, height: 2 * r))
+        ring.lineWidth = 1.2
+        ring.stroke()
       }
-      let reach = radii.last!
-      let sweep = NSBezierPath()
-      sweep.move(to: center)
-      sweep.line(to: NSPoint(x: center.x + reach * cos(.pi / 4), y: center.y - reach * sin(.pi / 4)))
-      sweep.lineWidth = 1.2
-      sweep.lineCapStyle = .round
-      sweep.stroke()
+      // The sweep: a faint wedge trailing the beam (flipped: angles run clockwise).
+      let beam: CGFloat = -50
+      let wedge = NSBezierPath()
+      wedge.move(to: center)
+      wedge.appendArc(withCenter: center, radius: outer, startAngle: beam - 55, endAngle: beam)
+      wedge.close()
+      NSColor.black.withAlphaComponent(0.25).setFill()
+      wedge.fill()
+      ink.set()
+      let line = NSBezierPath()
+      line.move(to: center)
+      line.line(to: NSPoint(x: center.x + outer * cos(beam * .pi / 180), y: center.y + outer * sin(beam * .pi / 180)))
+      line.lineWidth = 1.2
+      line.lineCapStyle = .round
+      line.stroke()
       if alert {
         NSColor.black.set()
-        let r = radii[1]
-        let blip = NSPoint(x: center.x + r * cos(.pi * 0.3), y: center.y - r * sin(.pi * 0.3))
-        NSBezierPath(ovalIn: NSRect(x: blip.x - 1.6, y: blip.y - 1.6, width: 3.2, height: 3.2)).fill()
+        let r = (outer + inner) / 2
+        let a: CGFloat = 25 * .pi / 180
+        let blip = NSPoint(x: center.x + r * cos(a), y: center.y + r * sin(a))
+        NSBezierPath(ovalIn: NSRect(x: blip.x - 1.7, y: blip.y - 1.7, width: 3.4, height: 3.4)).fill()
       }
 
       guard let dino else { return true }
       // A clear gap around the dino, so the radar passes behind it: knock out a slightly larger
       // copy (several times over, since Rex's glyph is partly transparent), then draw it.
       NSGraphicsContext.current?.compositingOperation = .destinationOut
-      let halo = dinoRect.insetBy(dx: -1.3, dy: -1.3)
+      let halo = dinoRect.insetBy(dx: -1.2, dy: -1.2)
       for _ in 0..<4 { dino.draw(in: halo) }
       for _ in 0..<4 { dino.draw(in: dinoRect) }
       NSGraphicsContext.current?.compositingOperation = .sourceOver
