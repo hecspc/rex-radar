@@ -127,6 +127,8 @@ phone open agents in the Mac's Rex.
   Keychain. A form takes the address and token by hand.
 - **Local network**: iOS asks once to allow local network access; the app can't reach the Mac on the LAN until it's
   allowed. Over Tailscale the hub is reachable from anywhere, encrypted.
+- Verified 2026-10-25 on an iPhone Air (iOS 27), paired by QR over the local network after allowing local
+  network access.
 - Builds with the same project: `xcodebuild -scheme RexRadarMobile …`. In a simulator, pair without the URL prompt
   with `SIMCTL_CHILD_REXRADAR_PAIR='rexradar://pair?…' xcrun simctl launch <sim> house.milapan.rex-radar.ios`.
 
