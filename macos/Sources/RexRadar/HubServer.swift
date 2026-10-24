@@ -1,0 +1,162 @@
+import Foundation
+import Network
+
+/// Serves the merged agent rows to Rex Radar on iPhone and iPad, and opens the pane they tap here,
+/// in this Mac's Rex app: the main server is the Mac this app runs on.
+///
+///   GET  /v1/agents          → { host, sources, rows, written_at }
+///   POST /v1/open?id=<row>   → shows that pane in Rex here
+///
+/// Every request needs `Authorization: Bearer <token>`; the token is generated once and shown,
+/// with a pairing QR code, in the window. Advertised over Bonjour as _rexradar._tcp.
+@MainActor
+final class HubServer: ObservableObject {
+  static let shared = HubServer(store: .shared)
+  static let port: UInt16 = 7298
+  static let serviceType = "_rexradar._tcp"
+
+  @Published private(set) var state = "stopped"
+  let token: String
+  private var listener: NWListener?
+  private let store: Store
+
+  init(store: Store) {
+    self.store = store
+    if let saved = UserDefaults.standard.string(forKey: "hubToken"), saved.count >= 32 {
+      token = saved
+    } else {
+      var bytes = [UInt8](repeating: 0, count: 24)
+      _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+      token = Data(bytes).base64EncodedString()
+        .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+        .replacingOccurrences(of: "=", with: "")
+      UserDefaults.standard.set(token, forKey: "hubToken")
+    }
+  }
+
+  var hostName: String { Host.current().localizedName ?? "Mac" }
+
+  func start() {
+    guard listener == nil else { return }
+    do {
+      let listener = try NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: Self.port)!)
+      listener.service = NWListener.Service(name: hostName, type: Self.serviceType)
+      listener.stateUpdateHandler = { [weak self] state in
+        Task { @MainActor in self?.state = "\(state)" }
+      }
+      listener.newConnectionHandler = { [weak self] connection in
+        Task { @MainActor in self?.serve(connection) }
+      }
+      listener.start(queue: .main)
+      self.listener = listener
+    } catch {
+      state = "failed: \(error.localizedDescription)"
+    }
+  }
+
+  // MARK: HTTP, just enough of it
+
+  private func serve(_ connection: NWConnection) {
+    connection.start(queue: .main)
+    receive(connection, buffer: Data())
+  }
+
+  private func receive(_ connection: NWConnection, buffer: Data) {
+    connection.receive(minimumIncompleteLength: 1, maximumLength: 16 * 1024) { [weak self] data, _, done, error in
+      Task { @MainActor in
+        guard let self else { return }
+        var buffer = buffer
+        if let data { buffer.append(data) }
+        if let end = buffer.range(of: Data("\r\n\r\n".utf8)) {
+          let head = String(decoding: buffer[..<end.lowerBound], as: UTF8.self)
+          self.respond(to: head, on: connection)
+        } else if done || error != nil || buffer.count > 16 * 1024 {
+          connection.cancel()
+        } else {
+          self.receive(connection, buffer: buffer)
+        }
+      }
+    }
+  }
+
+  private func respond(to head: String, on connection: NWConnection) {
+    let lines = head.components(separatedBy: "\r\n")
+    let parts = (lines.first ?? "").split(separator: " ")
+    guard parts.count >= 2 else { return send(connection, 400, ["error": "bad request"]) }
+    let method = String(parts[0])
+    let target = URLComponents(string: String(parts[1]))
+    let auth = lines.dropFirst().first { $0.lowercased().hasPrefix("authorization:") }
+      .map { $0.dropFirst("authorization:".count).trimmingCharacters(in: .whitespaces) }
+    guard let auth, constantTimeEqual(auth, "Bearer \(token)") else {
+      return send(connection, 401, ["error": "unauthorized"])
+    }
+
+    switch (method, target?.path) {
+    case ("GET", "/v1/agents"):
+      store.reload()
+      let body = AgentsResponse(host: hostName, sources: store.sources, rows: store.rows, writtenAt: Date())
+      send(connection, 200, body)
+    case ("POST", "/v1/open"):
+      let id = target?.queryItems?.first { $0.name == "id" }?.value
+      store.reload()
+      guard let row = store.rows.first(where: { $0.id == id }) else {
+        return send(connection, 404, ["error": "no such agent"])
+      }
+      store.open(row)
+      send(connection, 200, ["ok": "true"])
+    default:
+      send(connection, 404, ["error": "not found"])
+    }
+  }
+
+  private func send<T: Encodable>(_ connection: NWConnection, _ status: Int, _ body: T) {
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let json = (try? encoder.encode(body)) ?? Data("{}".utf8)
+    let reason = [200: "OK", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found"][status] ?? "Error"
+    var response = Data(
+      "HTTP/1.1 \(status) \(reason)\r\nContent-Type: application/json\r\nContent-Length: \(json.count)\r\nConnection: close\r\n\r\n".utf8)
+    response.append(json)
+    connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
+  }
+
+  private func constantTimeEqual(_ a: String, _ b: String) -> Bool {
+    let a = Array(a.utf8), b = Array(b.utf8)
+    guard a.count == b.count else { return false }
+    return zip(a, b).reduce(0) { $0 | ($1.0 ^ $1.1) } == 0
+  }
+
+  // MARK: Pairing
+
+  /// Addresses an iPhone can reach this Mac at: LAN and Tailscale (100.64.0.0/10) IPv4.
+  var addresses: [String] {
+    var result: [String] = []
+    var list: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&list) == 0, let first = list else { return [] }
+    defer { freeifaddrs(list) }
+    for ptr in sequence(first: first, next: { $0.pointee.ifa_next }) {
+      let ifa = ptr.pointee
+      guard let addr = ifa.ifa_addr, addr.pointee.sa_family == UInt8(AF_INET),
+        (ifa.ifa_flags & UInt32(IFF_LOOPBACK)) == 0, (ifa.ifa_flags & UInt32(IFF_UP)) != 0
+      else { continue }
+      var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+      getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST)
+      let ip = String(decoding: host.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+      if !ip.hasPrefix("169.254.") { result.append(ip) }
+    }
+    return Array(Set(result)).sorted()
+  }
+
+  /// rexradar://pair?host=…&port=…&token=…&name=…: scanned with the iPhone camera, it opens the
+  /// iOS app and pairs it.
+  func pairingURL(host: String) -> URL? {
+    var c = URLComponents()
+    c.scheme = "rexradar"
+    c.host = "pair"
+    c.queryItems = [
+      URLQueryItem(name: "host", value: host), URLQueryItem(name: "port", value: "\(Self.port)"),
+      URLQueryItem(name: "token", value: token), URLQueryItem(name: "name", value: hostName),
+    ]
+    return c.url
+  }
+}

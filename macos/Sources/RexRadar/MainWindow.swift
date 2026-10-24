@@ -8,6 +8,7 @@ final class WindowModel: ObservableObject {
 
 struct MainWindow: View {
   static let all = "__all__"
+  static let devices = "__devices__"
 
   @ObservedObject var store: Store
   @StateObject private var model = WindowModel()
@@ -18,6 +19,7 @@ struct MainWindow: View {
         Label("All Agents", systemImage: "dot.radiowaves.left.and.right")
           .badge(store.attentionCount)
           .tag(Self.all)
+        Label("iPhone & iPad", systemImage: "iphone.and.ipad").tag(Self.devices)
         Section("Servers") {
           ForEach(store.sources, id: \.self) { source in
             Label(source, systemImage: "server.rack")
@@ -34,12 +36,14 @@ struct MainWindow: View {
   }
 
   private var rows: [Row] {
-    guard let selection = model.selection, selection != Self.all else { return store.rows }
+    guard let selection = model.selection, selection != Self.all, selection != Self.devices else { return store.rows }
     return store.rows.filter { $0.source == selection }
   }
 
   @ViewBuilder private var detail: some View {
-    if rows.isEmpty {
+    if model.selection == Self.devices {
+      PairingView(hub: .shared)
+    } else if rows.isEmpty {
       ContentUnavailableView(
         "No agents", systemImage: "dot.radiowaves.left.and.right",
         description: Text("Run the watcher in a Rex pane:\nrex do watcher/rex-radar.lua --all source=mac"))

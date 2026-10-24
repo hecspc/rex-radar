@@ -114,6 +114,22 @@ macos/bundle.sh --install                                     # app only, comman
 - The team ID is the `OU` of your Apple Development certificate. A free Personal Team is enough to run it on your
   own Mac.
 
+### iPhone and iPad
+
+`macos/Sources/RexRadarMobile` is one SwiftUI app for both: a server sidebar beside agent cards on iPad, a stack on
+iPhone, with the same glass cards. It talks to the Mac app, which is the hub (the "main" server): taps on the
+phone open agents in the Mac's Rex.
+
+- **Hub** (in the Mac app): HTTP on port 7298, `GET /v1/agents` and `POST /v1/open?id=…`, every request with
+  `Authorization: Bearer <token>`; advertised over Bonjour as `_rexradar._tcp`.
+- **Pairing**: the Mac window's **iPhone & iPad** page shows a QR code per address (Tailscale first). Scan it with
+  the Camera app: the `rexradar://pair?host=…&token=…` link opens the app and pairs it. The token goes to the
+  Keychain. A form takes the address and token by hand.
+- **Local network**: iOS asks once to allow local network access; the app can't reach the Mac on the LAN until it's
+  allowed. Over Tailscale the hub is reachable from anywhere, encrypted.
+- Builds with the same project: `xcodebuild -scheme RexRadarMobile …`. In a simulator, pair without the URL prompt
+  with `SIMCTL_CHILD_REXRADAR_PAIR='rexradar://pair?…' xcrun simctl launch <sim> house.milapan.rex-radar.ios`.
+
 ## Risks
 
 - **The transport isn't public.** The API methods are documented; the protocol the `rex` CLI speaks to the server

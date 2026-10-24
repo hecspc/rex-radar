@@ -6,6 +6,7 @@ options:
   bundleIdPrefix: house.milapan
   deploymentTarget:
     macOS: "26.0"
+    iOS: "26.0"
   createIntermediateGroups: true
 settings:
   base:
@@ -52,3 +53,16 @@ targets:
     dependencies:
       - sdk: WidgetKit.framework
       - sdk: SwiftUI.framework
+  RexRadarMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/RexRadarMobile
+      - path: Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.ios
+        PRODUCT_NAME: RexRadarMobile
+        INFOPLIST_FILE: Resources/RexRadarMobile-Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_HARDENED_RUNTIME: NO
