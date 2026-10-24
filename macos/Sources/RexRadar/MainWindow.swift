@@ -35,6 +35,19 @@ struct MainWindow: View {
       detail
     }
     .frame(minWidth: 720, minHeight: 460)
+    .sheet(isPresented: Binding(get: { store.answering != nil }, set: { if !$0 { store.stopAnswering() } })) {
+      if let (row, draft) = store.answering {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 12) {
+            Text(row.pane.session ?? "Session").font(.title2.weight(.bold))
+            Text(row.tabLabel).foregroundStyle(.secondary)
+            QuestionsForm(draft: draft, send: { try await store.answer(row, $0) }, cancel: { store.stopAnswering() })
+          }
+          .padding(24)
+        }
+        .frame(width: 520, height: 560)
+      }
+    }
   }
 
   private var rows: [Row] {
@@ -55,7 +68,9 @@ struct MainWindow: View {
       ScrollView {
         GlassEffectContainer(spacing: 16) {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
-            ForEach(rows) { row in HeroCard(row: row) { store.open(row) } }
+            ForEach(rows) { row in
+              HeroCard(row: row, open: { store.open(row) }, answer: row.questions == nil ? nil : { store.startAnswering(row) })
+            }
           }
           .padding(20)
         }

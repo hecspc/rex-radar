@@ -131,10 +131,33 @@ phone open agents in the Mac's Rex.
   paired Macs (with their tokens) and agents in the App Group `group.house.milapan.rex-radar`, and the widget
   fetches fresh agents itself every few minutes, since the app is often not running. Tap one to open it on the
   main Mac.
+- **Orientation**: portrait and landscape on iPhone and iPad; cards reflow into as many columns as fit, and the
+  iPad sidebar sits beside them in landscape and slides over in portrait.
 - Verified 2026-10-25 on an iPhone Air (iOS 27), paired by QR over the local network after allowing local
   network access.
 - Builds with the same project: `xcodebuild -scheme RexRadarMobile …`. In a simulator, pair without the URL prompt
   with `SIMCTL_CHILD_REXRADAR_PAIR='rexradar://pair?…' xcrun simctl launch <sim> house.milapan.rex-radar.ios`.
+
+### Answering Claude's questions
+
+When Claude asks a question list (its AskUserQuestion tool), Rex Radar shows it as a form (Mac panel, window,
+iPhone and iPad) and answers it by typing into the pane, as tested on Claude Code 2.1.310:
+
+- a single-choice option's number selects it and moves on; free text is the number after the options, the text
+  and Enter (single-choice only: a multi-select question doesn't take typed text);
+- on a multi-select question numbers toggle and Tab moves on;
+- a list ends on Claude's review screen, which must show exactly the chosen answers before `1` submits; a single
+  single-choice question submits when picked.
+
+Before typing, Rex must report the pane as blocked on a question and the screen must show the first question;
+answers are validated (one per question, options in range, one short line of text). A mismatch at review leaves
+the form open in Rex. Phones can answer only when **Settings → Let iPhone & iPad answer Claude's questions** is
+on (off by default): `POST /v1/answer?id=…` answers `403` otherwise.
+
+`hooks/claude-rex-questions` saves the full question list per pane (Rex's status carries only the first
+question). Register it in `~/.claude/settings.json`: `ask` on PreToolUse with matcher `AskUserQuestion`, `done` on
+PostToolUse and PostToolUseFailure (same matcher), Stop and UserPromptSubmit (a cancelled list runs no post-tool
+hook).
 
 ### App icon
 

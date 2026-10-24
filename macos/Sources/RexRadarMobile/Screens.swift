@@ -45,6 +45,8 @@ struct AgentsScreen: View {
     } detail: {
       AgentList(client: client, agents: agents, title: title)
     }
+    // iPad landscape: sidebar beside the cards; portrait: the sidebar slides over.
+    .navigationSplitViewStyle(.balanced)
     .sheet(isPresented: $showSettings) { SettingsSheet(client: client) }
     .overlay(alignment: .bottom) {
       if let notice = client.notice {
@@ -75,6 +77,7 @@ struct AgentList: View {
   let client: HubClient
   let agents: [Agent]
   let title: String
+  @State private var answering: Agent?
 
   var body: some View {
     ScrollView {
@@ -90,14 +93,25 @@ struct AgentList: View {
               "No agents", systemImage: "dot.radiowaves.left.and.right",
               description: Text("Nothing is running in Rex on your Macs right now."))
           }
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 14)], spacing: 14) {
-            ForEach(agents) { agent in HeroCard(row: agent.row) { client.open(agent) } }
+          // Portrait iPhone: one column; landscape and iPad: as many as fit.
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 520), spacing: 14, alignment: .top)], spacing: 14) {
+            ForEach(agents) { agent in
+              HeroCard(
+                row: agent.row, open: { client.open(agent) },
+                answer: client.canAnswer(agent) ? { answering = agent } : nil)
+            }
           }
         }
         .padding()
       }
     }
     .refreshable { await client.refresh() }
+    .sheet(item: $answering) { agent in AnswerSheet(client: client, agent: agent) }
+    // For simulators: `SIMCTL_CHILD_REXRADAR_SHOW_ANSWER=1` opens the first answerable form.
+    .task(id: agents.map(\.id)) {
+      guard ProcessInfo.processInfo.environment["REXRADAR_SHOW_ANSWER"] == "1", answering == nil else { return }
+      answering = agents.first(where: client.canAnswer)
+    }
     .navigationTitle(title)
     .toolbarTitleDisplayMode(.inline)
   }
@@ -212,6 +226,37 @@ struct SettingsSheet: View {
       }
       .navigationTitle("Settings")
       .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+    }
+  }
+}
+
+/// Claude's question list as a form, sent to the Mac that reported it.
+struct AnswerSheet: View {
+  let client: HubClient
+  let agent: Agent
+  @StateObject private var draft: AnswerDraft
+  @Environment(\.dismiss) private var dismiss
+
+  init(client: HubClient, agent: Agent) {
+    self.client = client
+    self.agent = agent
+    _draft = StateObject(wrappedValue: AnswerDraft(agent.row.questions ?? PendingQuestions(questions: [])))
+  }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        QuestionsForm(draft: draft) { answers in
+          try await client.answer(agent, answers)
+          dismiss()
+        }
+        .padding()
+        .frame(maxWidth: 640)
+        .frame(maxWidth: .infinity)
+      }
+      .navigationTitle(agent.row.pane.session ?? "Questions")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
     }
   }
 }

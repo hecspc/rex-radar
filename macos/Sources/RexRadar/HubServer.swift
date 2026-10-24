@@ -5,6 +5,8 @@ import Network
 /// in this Mac's Rex app: the main server is the Mac this app runs on.
 ///
 ///   GET  /v1/agents          → { host, sources, rows, written_at }
+///   POST /v1/answer?id=<row> → answers its question list (body: [QuestionAnswer]); only when
+///                              Settings allows it, refused otherwise
 ///   POST /v1/open?id=<row>   → shows that pane in Rex here (body: the row, for agents another Mac
 ///                              watches on a server this Mac reaches by address)
 ///
@@ -103,7 +105,9 @@ final class HubServer: ObservableObject {
     switch (method, target?.path) {
     case ("GET", "/v1/agents"):
       store.reload()
-      let body = AgentsResponse(host: hostName, sources: store.sources, rows: store.rows, writtenAt: Date())
+      let body = AgentsResponse(
+        host: hostName, sources: store.sources, rows: store.rows, writtenAt: Date(),
+        answering: Preferences.shared.allowPhoneAnswers)
       send(connection, 200, body)
     case ("POST", "/v1/open"):
       let id = target?.queryItems?.first { $0.name == "id" }?.value
@@ -121,6 +125,26 @@ final class HubServer: ObservableObject {
         return send(connection, 200, ["ok": "true"])
       }
       send(connection, 404, ["error": "no such agent"])
+    case ("POST", "/v1/answer"):
+      guard Preferences.shared.allowPhoneAnswers else {
+        return send(connection, 403, ["error": "Answering from iPhone & iPad is off in Rex Radar's Settings on this Mac."])
+      }
+      let id = target?.queryItems?.first { $0.name == "id" }?.value
+      store.reload()
+      guard let row = store.rows.first(where: { $0.id == id }) else {
+        return send(connection, 404, ["error": "no such agent"])
+      }
+      guard let answers = try? JSONDecoder().decode([QuestionAnswer].self, from: body) else {
+        return send(connection, 400, ["error": "bad answers"])
+      }
+      Task {
+        do {
+          try await store.answer(row, answers)
+          send(connection, 200, ["ok": "true"])
+        } catch {
+          send(connection, 409, ["error": error.localizedDescription])
+        }
+      }
     default:
       send(connection, 404, ["error": "not found"])
     }
@@ -130,7 +154,7 @@ final class HubServer: ObservableObject {
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
     let json = (try? encoder.encode(body)) ?? Data("{}".utf8)
-    let reason = [200: "OK", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found"][status] ?? "Error"
+    let reason = [200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 409: "Conflict"][status] ?? "Error"
     var response = Data(
       "HTTP/1.1 \(status) \(reason)\r\nContent-Type: application/json\r\nContent-Length: \(json.count)\r\nConnection: close\r\n\r\n".utf8)
     response.append(json)

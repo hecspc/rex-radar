@@ -6,4 +6,6 @@ struct AgentsResponse: Codable {
   var sources: [String]
   var rows: [Row]
   var writtenAt: Date
+  /// Whether this Mac lets phones answer Claude's questions (Settings, off by default).
+  var answering: Bool? = nil
 }

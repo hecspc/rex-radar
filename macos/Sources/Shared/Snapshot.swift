@@ -75,6 +75,8 @@ struct Row: Codable, Identifiable, Hashable {
   var source: String
   var server: String?
   var stale: Bool
+  /// The question list Claude is asking here, when it is (from the questions hook).
+  var questions: PendingQuestions?
 
   var id: String { source + "/" + pane.blockId }
   var state: AgentState { AgentState(pane.state) }

@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Claude Code hook → Rex Radar: keeps the question list Claude is asking in a Rex pane, so
+# Rex Radar can show it whole and answer it (Rex's own status carries only the first question).
+#
+#   claude-rex-questions ask     PreToolUse,  matcher AskUserQuestion: save the questions
+#   claude-rex-questions done    PostToolUse / PostToolUseFailure (same matcher), Stop and
+#                                UserPromptSubmit: remove them (a cancelled question runs no post-tool hook)
+#
+# File: ${REX_RADAR_DIR:-~/.local/state/rex-radar}/questions/<REX_BLOCK>.json
+#   { "block_id", "session_id", "tool_use_id", "asked_at", "questions": [ … tool_input.questions … ] }
+# Must never fail or print: hook output reaches Claude.
+
+[ -n "$REX_BLOCK" ] || exit 0
+case "$REX_BLOCK" in *[!A-Za-z0-9:._-]* | .*) exit 0 ;; esac
+command -v jq >/dev/null 2>&1 || exit 0
+input="$(cat)"
+dir="${REX_RADAR_DIR:-$HOME/.local/state/rex-radar}/questions"
+file="$dir/$REX_BLOCK.json"
+
+case "$1" in
+  ask)
+    {
+      mkdir -p -m 700 "$dir" &&
+        jq -c --arg block "$REX_BLOCK" --arg session "${REX_SESSION:-}" --arg at "$(date -u +%FT%TZ)" \
+          '{block_id: $block, session_id: $session, tool_use_id: .tool_use_id, asked_at: $at,
+            questions: (.tool_input.questions // [])}' <<<"$input" >"$file.tmp.$$" &&
+        mv -f "$file.tmp.$$" "$file"
+    } 2>/dev/null
+    ;;
+  done)
+    rm -f "$file" 2>/dev/null
+    ;;
+esac
+exit 0

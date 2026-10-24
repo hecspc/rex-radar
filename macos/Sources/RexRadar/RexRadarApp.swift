@@ -11,6 +11,9 @@ struct RexRadarApp: App {
     if let dir = Render.directory {
       DispatchQueue.main.async { Render.run(store: Store(), into: dir) }
     }
+    if let (block, json) = AnswerCommand.arguments {
+      DispatchQueue.main.async { AnswerCommand.run(block, json) }
+    }
   }
 
   var body: some Scene {
@@ -47,6 +50,8 @@ struct MenuBarLabel: View {
 /// Starts the hub for iPhone and iPad; widget taps arrive as rexradar:// URLs.
 final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
+    // The --render and --answer test modes run beside the real app: no watchers, no hub.
+    guard Render.directory == nil, AnswerCommand.arguments == nil else { return }
     MainActor.assumeIsolated {
       HubServer.shared.start()
       Watchers.shared.startAll()

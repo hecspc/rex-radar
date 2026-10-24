@@ -12,6 +12,15 @@ final class Store: ObservableObject {
   @Published private(set) var lastError: String?
   /// The last failed `open`, shown under the list.
   @Published var openError: String?
+  /// The question list being answered in the panel or window, and what's picked so far.
+  @Published private(set) var answering: (row: Row, draft: AnswerDraft)?
+
+  func startAnswering(_ row: Row) {
+    guard let questions = row.questions else { return }
+    answering = (row, AnswerDraft(questions))
+  }
+
+  func stopAnswering() { answering = nil }
 
   let directory: URL = {
     if let dir = ProcessInfo.processInfo.environment["REX_RADAR_DIR"] { return URL(fileURLWithPath: dir) }
@@ -61,6 +70,27 @@ final class Store: ObservableObject {
     if let row = rows.first(where: { $0.id == id }) { open(row) }
   }
 
+  /// The question list the hook saved for a pane, but only while Rex says the pane is waiting on
+  /// a question: a cancelled list leaves its file behind. The hook runs on this Mac, so only this
+  /// Mac's own Rex server has them.
+  private func questions(for pane: Pane, server: String?) -> PendingQuestions? {
+    guard server == nil, pane.state == "blocked", pane.kind == "question" else { return nil }
+    let file = directory.appendingPathComponent("questions/\(pane.blockId).json")
+    guard let data = try? Data(contentsOf: file) else { return nil }
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    return try? decoder.decode(PendingQuestions.self, from: data)
+  }
+
+  /// Answers the question list in a pane by typing into it (see Rex.answer). Throws on refusal.
+  func answer(_ row: Row, _ answers: [QuestionAnswer]) async throws {
+    guard let questions = row.questions else { throw AnswerError.notWaiting }
+    try questions.validate(answers)
+    try await Task.detached { try Rex.answer(row, questions: questions, answers: answers) }.value
+    if answering?.row.id == row.id { answering = nil }
+    reload()
+  }
+
   func reload() {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -75,7 +105,9 @@ final class Store: ObservableObject {
         let s = try decoder.decode(Snapshot.self, from: Data(contentsOf: file))
         let stale = Date().timeIntervalSince(s.writtenAt) > 2 * s.heartbeatSeconds
         sources.append(s.source)
-        rows += s.panes.map { Row(pane: $0, source: s.source, server: s.server, stale: stale) }
+        rows += s.panes.map {
+          Row(pane: $0, source: s.source, server: s.server, stale: stale, questions: questions(for: $0, server: s.server))
+        }
       } catch {
         errors.append("\(file.lastPathComponent): \(error.localizedDescription)")
       }

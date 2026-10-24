@@ -85,4 +85,90 @@ enum Rex {
         server: row.server)
     }
   }
+
+  // MARK: Answering Claude's questions
+
+  /// The pane's screen as text.
+  static func screen(_ row: Row) throws -> String {
+    let out = try run(["capture", "-s", row.pane.sessionId, "-b", row.pane.blockId, "--trim"], server: row.server)
+    return String(decoding: out, as: UTF8.self)
+  }
+
+  /// Whether Rex says the pane's program waits on a question (OSC 7501 blocked, kind question).
+  static func waitsOnQuestion(_ row: Row) throws -> Bool {
+    let status = try call(
+      "com.superlogical.terminal.program_status",
+      ["session_id": row.pane.sessionId, "block_id": row.pane.blockId, "args": [String: String]()],
+      server: row.server) as? [String: Any]
+    let records = status?["records"] as? [[String: Any]] ?? []
+    return records.contains { $0["state"] as? String == "blocked" && $0["kind"] as? String == "question" }
+  }
+
+  static func key(_ row: Row, _ key: String) throws {
+    _ = try run(["send-key", "-s", row.pane.sessionId, "-b", row.pane.blockId, key], server: row.server)
+    Thread.sleep(forTimeInterval: 0.45)
+  }
+
+  static func type(_ row: Row, _ text: String) throws {
+    _ = try run(["send", "-s", row.pane.sessionId, "-b", row.pane.blockId, "--", text], server: row.server)
+    Thread.sleep(forTimeInterval: 0.45)
+  }
+
+  /// Answers Claude's question list by typing what a person would, as tested on Claude Code 2.1.310:
+  /// a single-choice option's number selects it and moves on; "Type something" is the number after
+  /// the options, then the text and Enter; on a multi-select question numbers toggle and Tab moves
+  /// on. A list ends on a review screen, which must show exactly our answers before "1" submits;
+  /// a single single-choice question submits as soon as it's picked.
+  static func answer(_ row: Row, questions: PendingQuestions, answers: [QuestionAnswer]) throws {
+    let qs = questions.questions
+    guard let first = qs.first else { throw AnswerError.notWaiting }
+    // Still asking the same thing? Rex must say it waits on a question, and the screen must show it.
+    guard try waitsOnQuestion(row), try screen(row).contains(first.question) else { throw AnswerError.notWaiting }
+
+    for (q, a) in zip(qs, answers) {
+      if let text = a.text {
+        try key(row, "\(q.options.count + 1)")
+        try type(row, text)
+        try key(row, "enter")
+      } else if q.isMulti {
+        for i in a.options ?? [] { try key(row, "\(i + 1)") }
+        try key(row, "tab")
+      } else {
+        try key(row, "\((a.options ?? [0])[0] + 1)")
+      }
+    }
+
+    if qs.count == 1 && !first.isMulti {
+      Thread.sleep(forTimeInterval: 1.5)
+      if try waitsOnQuestion(row) { throw AnswerError.stillWaiting }
+      return
+    }
+
+    Thread.sleep(forTimeInterval: 0.6)
+    let review = try screen(row)
+    guard review.contains("Review your answers") else { throw AnswerError.reviewMismatch("no review screen") }
+    for (q, expected) in zip(qs, questions.reviewLines(answers)) {
+      guard review.contains("→ " + expected) else { throw AnswerError.reviewMismatch("\(q.header ?? q.question): \(expected)") }
+    }
+    try key(row, "1")
+  }
+
+  /// Runs `rex [-S server] <args>` and returns its output.
+  private static func run(_ args: [String], server: String?) throws -> Data {
+    guard let rex = executable else { throw Failure.noRex }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: rex)
+    process.arguments = (server.map { $0.isEmpty ? [] : ["-S", $0] } ?? []) + args
+    let out = Pipe(), err = Pipe()
+    process.standardOutput = out
+    process.standardError = err
+    try process.run()
+    let data = out.fileHandleForReading.readDataToEndOfFile()
+    let errData = err.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+      throw Failure.call(String(decoding: errData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+    return data
+  }
 }

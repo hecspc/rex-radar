@@ -13,7 +13,13 @@ final class Preferences: ObservableObject {
     didSet { UserDefaults.standard.set(clientLabel, forKey: "clientLabel") }
   }
 
+  /// Off by default: answering types into terminals, so a phone with the token could too.
+  @Published var allowPhoneAnswers: Bool {
+    didSet { UserDefaults.standard.set(allowPhoneAnswers, forKey: "allowPhoneAnswers") }
+  }
+
   init() {
+    allowPhoneAnswers = UserDefaults.standard.bool(forKey: "allowPhoneAnswers")
     clientLabel = UserDefaults.standard.string(forKey: "clientLabel") ?? Host.current().localizedName ?? ""
   }
 
@@ -56,6 +62,16 @@ struct SettingsView: View {
         Text("General")
       } footer: {
         Text("Rex Radar starts its watchers and the iPhone & iPad hub when it opens.")
+      }
+
+      Section {
+        Toggle("Let iPhone & iPad answer Claude's questions", isOn: $prefs.allowPhoneAnswers)
+      } header: {
+        Text("Questions")
+      } footer: {
+        Text(
+          "Answering types into the Claude pane in Rex. Rex Radar only types for a pane that's showing a question "
+            + "list, only option numbers, Tab and one short line, and checks Claude's review before submitting.")
       }
 
       Section {

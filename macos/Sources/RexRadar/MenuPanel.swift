@@ -10,8 +10,15 @@ struct MenuPanel: View {
     GlassEffectContainer(spacing: 12) {
       VStack(alignment: .leading, spacing: 12) {
         header
-        if let hero = store.rows.first {
-          HeroCard(row: hero) { store.open(hero) }
+        if let (row, draft) = store.answering {
+          GlassCard(padding: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("\(row.pane.session ?? "Session") · \(row.tabLabel)").font(.subheadline).foregroundStyle(.secondary)
+              QuestionsForm(draft: draft, send: { try await store.answer(row, $0) }, cancel: { store.stopAnswering() })
+            }
+          }
+        } else if let hero = store.rows.first {
+          HeroCard(row: hero, open: { store.open(hero) }, answer: hero.questions == nil ? nil : { store.startAnswering(hero) })
           let rest = Array(store.rows.dropFirst())
           if !rest.isEmpty { others(rest) }
         } else {

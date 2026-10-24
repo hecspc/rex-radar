@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @main
 struct RexRadarMobileApp: App {
@@ -8,6 +9,7 @@ struct RexRadarMobileApp: App {
     WindowGroup {
       RootView(client: client)
         .onOpenURL { client.handle($0) }
+        .onAppear(perform: forceOrientationForTests)
     }
   }
 }
@@ -30,4 +32,14 @@ struct RootView: View {
       if phase == .active { polling = Task { await client.poll() } }
     }
   }
+}
+
+/// For simulators, which this Xcode can't rotate from the command line:
+/// `SIMCTL_CHILD_REXRADAR_ORIENTATION=landscape xcrun simctl launch …`.
+@MainActor
+private func forceOrientationForTests() {
+  guard ProcessInfo.processInfo.environment["REXRADAR_ORIENTATION"] == "landscape",
+    let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+  else { return }
+  scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight))
 }

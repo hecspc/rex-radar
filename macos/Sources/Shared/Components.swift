@@ -49,6 +49,8 @@ struct CircleButton: View {
 struct HeroCard: View {
   let row: Row
   let open: () -> Void
+  /// Set when the questions can be answered from here: shows "Answer N questions".
+  var answer: (() -> Void)? = nil
 
   var body: some View {
     GlassCard(padding: 16) {
@@ -68,6 +70,13 @@ struct HeroCard: View {
         }
         if let msg = row.pane.msg, !msg.isEmpty {
           Text(msg).font(.callout).foregroundStyle(.secondary).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+        }
+        if let answer, let n = row.questions?.questions.count {
+          Button(action: answer) {
+            Label("Answer \(n) question\(n == 1 ? "" : "s")", systemImage: "questionmark.bubble").frame(maxWidth: .infinity)
+          }
+          .glassProminentButtonStyle()
+          .controlSize(.large)
         }
         Button(action: open) {
           Label("Open in Rex", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity)

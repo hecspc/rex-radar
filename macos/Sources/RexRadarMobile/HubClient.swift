@@ -28,6 +28,8 @@ final class HubClient {
   private(set) var hubs: [Hub] = []
   private(set) var mainID: UUID?
   private(set) var agentsByHub: [UUID: [Row]] = [:]
+  /// Per Mac: whether it lets this device answer Claude's questions (its Settings).
+  private(set) var answeringByHub: [UUID: Bool] = [:]
   private(set) var errors: [UUID: String] = [:]
   private(set) var updated: Date?
   /// Shown briefly after a tap: "Opened on vv-macbook".
@@ -129,6 +131,7 @@ final class HubClient {
         switch result {
         case .success(let response):
           agentsByHub[id] = response.rows
+          answeringByHub[id] = response.answering ?? false
           errors[id] = nil
         case .failure(let error):
           errors[id] = error.localizedDescription
@@ -182,6 +185,26 @@ final class HubClient {
     }
   }
 
+  // MARK: Answering
+
+  /// Whether this agent's questions can be answered from here: its Mac (where the questions hook
+  /// ran) allows it.
+  func canAnswer(_ agent: Agent) -> Bool { agent.row.questions != nil && (answeringByHub[agent.hubID] ?? false) }
+
+  /// Sends the answers to the Mac that reported the agent; it types them into Claude's form.
+  func answer(_ agent: Agent, _ answers: [QuestionAnswer]) async throws {
+    guard let hub = hubs.first(where: { $0.id == agent.hubID }), let base = hub.base,
+      var c = URLComponents(url: base.appending(path: "v1/answer"), resolvingAgainstBaseURL: false)
+    else { throw HubError.notFound }
+    c.queryItems = [URLQueryItem(name: "id", value: agent.row.id)]
+    guard let url = c.url else { throw HubError.notFound }
+    _ = try await Self.request(url, method: "POST", token: Keychain.read(for: hub.id), body: try JSONEncoder().encode(answers))
+    notice = "Answered on \(hub.name)"
+    await refresh()
+    try? await Task.sleep(for: .seconds(2.5))
+    notice = nil
+  }
+
   // MARK: Opening
 
   /// Opens the agent in Rex on the main Mac when it can reach the agent's server (a remote server,
@@ -232,7 +255,9 @@ final class HubClient {
     case 200: return data
     case 401: throw HubError.unauthorized
     case 404: throw HubError.notFound
-    default: throw HubError.status(status)
+    default:
+      let message = (try? JSONSerialization.jsonObject(with: data) as? [String: String])?["error"]
+      throw message.map(HubError.refused) ?? HubError.status(status)
     }
   }
 
@@ -269,12 +294,13 @@ final class HubClient {
 }
 
 enum HubError: LocalizedError {
-  case unauthorized, notFound, status(Int)
+  case unauthorized, notFound, status(Int), refused(String)
   var errorDescription: String? {
     switch self {
     case .unauthorized: "The Mac refused the pairing. Scan its code again."
     case .notFound: "That Mac doesn't know this agent."
     case .status(let code): "The Mac answered \(code)."
+    case .refused(let message): message
     }
   }
 }
