@@ -93,6 +93,21 @@ bin/rex-radar open 2 --client vv-macbook   # only in the app labelled vv-macbook
 Verified 2026-10-24 on Rex build 1408 with Claude Code 2.1.310: idle → working → done with the summary, a session
 rename picked up live, and `open` switching the Mac app to the pane's tab. Not yet tried: a second server.
 
+### macOS menu bar app
+
+`macos/` is a SwiftUI menu-bar app over the same snapshots. Builds with Apple's command-line tools only (no
+Xcode), so it avoids SwiftUI's macros (`@State`, `@Observable`): their plugins ship only with Xcode.
+
+```sh
+macos/bundle.sh --install    # → ~/Applications/RexRadar.app, menu bar only, ad-hoc signed
+```
+
+- Icon: the most urgent live state (blocked › error › done › working), with a count of agents that want you.
+- Panel: every agent pane, most urgent first, stale watchers dimmed. Click a row to show it in your Rex app.
+- It switches only the Rex app labelled with this Mac's name (`Host.current().localizedName`). Override:
+  `defaults write house.milapan.rex-radar clientLabel <label>`.
+- It runs `rex` from the Rex app's bundle, since a GUI app's PATH doesn't have it (`REX_BIN` overrides).
+
 ## Risks
 
 - **The transport isn't public.** The API methods are documented; the protocol the `rex` CLI speaks to the server
