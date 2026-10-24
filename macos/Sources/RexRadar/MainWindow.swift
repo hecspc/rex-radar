@@ -9,6 +9,7 @@ final class WindowModel: ObservableObject {
 struct MainWindow: View {
   static let all = "__all__"
   static let devices = "__devices__"
+  static let manage = "__servers__"
 
   @ObservedObject var store: Store
   @StateObject private var model = WindowModel()
@@ -26,6 +27,7 @@ struct MainWindow: View {
               .badge(store.rows.filter { $0.source == source && !$0.stale && $0.state.needsAttention }.count)
               .tag(source)
           }
+          Label("Manage Servers…", systemImage: "slider.horizontal.3").tag(Self.manage)
         }
       }
       .navigationSplitViewColumnWidth(min: 180, ideal: 200)
@@ -36,13 +38,15 @@ struct MainWindow: View {
   }
 
   private var rows: [Row] {
-    guard let selection = model.selection, selection != Self.all, selection != Self.devices else { return store.rows }
+    guard let selection = model.selection, selection != Self.all, selection != Self.devices, selection != Self.manage else { return store.rows }
     return store.rows.filter { $0.source == selection }
   }
 
   @ViewBuilder private var detail: some View {
     if model.selection == Self.devices {
       PairingView(hub: .shared)
+    } else if model.selection == Self.manage {
+      ServersView(watchers: .shared)
     } else if rows.isEmpty {
       ContentUnavailableView(
         "No agents", systemImage: "dot.radiowaves.left.and.right",

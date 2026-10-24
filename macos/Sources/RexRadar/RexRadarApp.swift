@@ -42,7 +42,10 @@ struct MenuBarLabel: View {
 /// Starts the hub for iPhone and iPad; widget taps arrive as rexradar:// URLs.
 final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
-    MainActor.assumeIsolated { HubServer.shared.start() }
+    MainActor.assumeIsolated {
+      HubServer.shared.start()
+      Watchers.shared.startAll()
+    }
   }
 
   func application(_ application: NSApplication, open urls: [URL]) {

@@ -27,6 +27,8 @@ targets:
     sources:
       - path: Sources/RexRadar
       - path: Sources/Shared
+      - path: ../watcher/rex-radar.lua
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar

@@ -11,6 +11,7 @@ app=build/RexRadar.app
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
 cp "$(swift build -c release --show-bin-path)/RexRadar" "$app/Contents/MacOS/RexRadar"
+mkdir -p "$app/Contents/Resources" && cp ../watcher/rex-radar.lua "$app/Contents/Resources/"
 cat >"$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -5,7 +5,7 @@ let package = Package(
   name: "RexRadar",
   platforms: [.macOS("26.0")],
   targets: [
-    // The app's own sources plus Shared; the widget only builds with Xcode (project.yml).
-    .executableTarget(name: "RexRadar", path: "Sources", exclude: ["RexRadarWidget"])
+    // The app's own sources plus Shared; the widget and iOS app build only with Xcode (project.yml).
+    .executableTarget(name: "RexRadar", path: "Sources", exclude: ["RexRadarWidget", "RexRadarMobile"])
   ]
 )
