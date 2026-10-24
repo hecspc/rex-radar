@@ -13,7 +13,15 @@ struct AgentsWidget: Widget {
     }
     .configurationDisplayName("Rex Radar")
     .description("Your coding agents in Rex, most urgent first.")
-    .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    .supportedFamilies(families)
+  }
+
+  private var families: [WidgetFamily] {
+    #if os(iOS)
+      [.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline]
+    #else
+      [.systemSmall, .systemMedium, .systemLarge]
+    #endif
   }
 }
 
@@ -36,7 +44,23 @@ struct Provider: TimelineProvider {
   func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) { completion(current()) }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
-    completion(Timeline(entries: [current()], policy: .after(.now.addingTimeInterval(15 * 60))))
+    // iOS: the app shares its paired Macs, so the widget fetches fresh agents itself (the app is
+    // often not running). macOS: the app is always running and writes the rows for us.
+    guard let hubs = WidgetHubs.read(), !hubs.hubs.isEmpty else {
+      completion(Timeline(entries: [current()], policy: .after(.now.addingTimeInterval(15 * 60))))
+      return
+    }
+    // WidgetKit calls completion once, from any thread.
+    nonisolated(unsafe) let completion = completion
+    let fallback = current()
+    Task {
+      var entry = fallback
+      if let rows = await hubs.fetchRows() {
+        SharedState.write(rows)
+        entry = Entry(date: .now, rows: rows, connected: true)
+      }
+      completion(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(5 * 60))))
+    }
   }
 
   private func current() -> Entry {
@@ -52,6 +76,11 @@ struct AgentsView: View {
   var body: some View {
     switch family {
     case .systemSmall: small
+    #if os(iOS)
+      case .accessoryCircular: circular
+      case .accessoryRectangular: rectangular
+      case .accessoryInline: inline
+    #endif
     default: list(limit: family == .systemLarge ? 7 : 3)
     }
   }
@@ -107,6 +136,42 @@ struct AgentsView: View {
       }
     }
   }
+
+  #if os(iOS)
+    /// Lock Screen: how many agents want you, around the radar glyph.
+    private var circular: some View {
+      ZStack {
+        AccessoryWidgetBackground()
+        VStack(spacing: 0) {
+          Image(systemName: "dot.radiowaves.left.and.right").font(.caption)
+          Text("\(entry.attention)").font(.title3.weight(.bold))
+        }
+      }
+      .widgetURL(entry.rows.first?.openURL)
+    }
+
+    /// Lock Screen: the most urgent agent.
+    private var rectangular: some View {
+      VStack(alignment: .leading, spacing: 1) {
+        if let row = entry.rows.first {
+          Label(row.stateLabel, systemImage: row.state.symbol).font(.headline)
+          Text(row.pane.session ?? "Session").font(.caption).lineLimit(1)
+          if let detail = row.pane.msg ?? row.topic { Text(detail).font(.caption2).lineLimit(1) }
+        } else {
+          Label("Rex Radar", systemImage: "dot.radiowaves.left.and.right").font(.headline)
+          Text(entry.connected ? "No agents" : "Open the app").font(.caption)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .widgetURL(entry.rows.first?.openURL)
+    }
+
+    private var inline: some View {
+      Label(
+        entry.attention > 0 ? "\(entry.attention) agent\(entry.attention == 1 ? "" : "s") want you" : "Agents quiet",
+        systemImage: "dot.radiowaves.left.and.right")
+    }
+  #endif
 
   private var emptyText: some View {
     Text(entry.connected ? "No agents running" : "Open Rex Radar to connect")

@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import Security
+import WidgetKit
 
 /// A Mac running Rex Radar that this device is paired with.
 struct Hub: Codable, Equatable, Identifiable {
@@ -105,6 +106,7 @@ final class HubClient {
   }
 
   func unpair(_ hub: Hub) {
+    defer { shareWithWidget() }
     hubs.removeAll { $0.id == hub.id }
     agentsByHub[hub.id] = nil
     errors[hub.id] = nil
@@ -134,6 +136,30 @@ final class HubClient {
       }
     }
     updated = Date()
+    shareWithWidget()
+  }
+
+  /// Hands the paired Macs and the current agents to the widget; wakes it only on a change.
+  private func shareWithWidget() {
+    let entries = hubs.compactMap { hub -> WidgetHubs.Entry? in
+      guard let token = Keychain.read(for: hub.id) else { return nil }
+      return .init(name: hub.name, host: hub.host, port: hub.port, token: token, isMain: hub.id == main?.id)
+    }
+    let hubsChanged = WidgetHubs.write(WidgetHubs(hubs: entries))
+    let rowsChanged = SharedState.write(agents.map(\.row))
+    if hubsChanged || rowsChanged { WidgetCenter.shared.reloadAllTimelines() }
+  }
+
+  /// rexradar:// links: pairing from the Mac's QR code, or opening an agent from the widget.
+  func handle(_ url: URL) {
+    if pair(with: url) { return }
+    guard url.scheme == "rexradar", url.host == "open",
+      let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "id" })?.value
+    else { return }
+    Task {
+      if agents.isEmpty { await refresh() }
+      if let agent = agents.first(where: { $0.row.id == id }) { open(agent) }
+    }
   }
 
   /// Polls while the app is on screen; the caller cancels the task when it goes to the background.

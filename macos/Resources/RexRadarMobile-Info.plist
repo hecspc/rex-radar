@@ -10,6 +10,7 @@
   <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
   <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
   <key>LSRequiresIPhoneOS</key><true/>
+  <key>RexRadarAppGroup</key><string>group.house.milapan.rex-radar</string>
   <key>UILaunchScreen</key><dict/>
   <key>UIApplicationSceneManifest</key>
   <dict><key>UIApplicationSupportsMultipleScenes</key><true/></dict>

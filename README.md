@@ -127,10 +127,19 @@ phone open agents in the Mac's Rex.
   Keychain. A form takes the address and token by hand.
 - **Local network**: iOS asks once to allow local network access; the app can't reach the Mac on the LAN until it's
   allowed. Over Tailscale the hub is reachable from anywhere, encrypted.
+- **Widget** (Home Screen small/medium/large, Lock Screen circular/rectangular/inline): the app shares its
+  paired Macs (with their tokens) and agents in the App Group `group.house.milapan.rex-radar`, and the widget
+  fetches fresh agents itself every few minutes, since the app is often not running. Tap one to open it on the
+  main Mac.
 - Verified 2026-10-25 on an iPhone Air (iOS 27), paired by QR over the local network after allowing local
   network access.
 - Builds with the same project: `xcodebuild -scheme RexRadarMobile …`. In a simulator, pair without the URL prompt
   with `SIMCTL_CHILD_REXRADAR_PAIR='rexradar://pair?…' xcrun simctl launch <sim> house.milapan.rex-radar.ios`.
+
+### App icon
+
+`macos/scripts/make-icon.swift` draws the icon (our own dino in front of a radar, on a night-blue tile) into
+`macos/Resources/Assets.xcassets`; run it from `macos/` after changing the drawing.
 
 ## Risks
 

@@ -7,7 +7,7 @@ struct RexRadarMobileApp: App {
   var body: some Scene {
     WindowGroup {
       RootView(client: client)
-        .onOpenURL { client.pair(with: $0) }
+        .onOpenURL { client.handle($0) }
     }
   }
 }
