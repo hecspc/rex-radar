@@ -6,7 +6,7 @@ options:
   bundleIdPrefix: house.milapan
   deploymentTarget:
     macOS: "26.0"
-    iOS: "18.0"
+    iOS: "17.0"
   createIntermediateGroups: true
 settings:
   base:

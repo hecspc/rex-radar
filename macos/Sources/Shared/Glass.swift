@@ -1,7 +1,7 @@
 import SwiftUI
 
 // Liquid Glass where the system has it (iOS/iPadOS/macOS 26), the frosted material before.
-// The iOS app supports iOS 18, so shared views go through these rather than the glass APIs.
+// The iOS app supports iOS 17, so shared views go through these rather than the glass APIs.
 
 extension View {
   /// A glass (or frosted) background in the given shape.

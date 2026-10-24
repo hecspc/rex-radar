@@ -116,7 +116,7 @@ macos/bundle.sh --install                                     # app only, comman
 
 ### iPhone and iPad
 
-`macos/Sources/RexRadarMobile` is one SwiftUI app for both (iOS/iPadOS 18+; Liquid Glass on 26+, frosted material before): a server sidebar beside agent cards on iPad, a stack on
+`macos/Sources/RexRadarMobile` is one SwiftUI app for both (iOS/iPadOS 17+; Liquid Glass on 26+, frosted material before): a server sidebar beside agent cards on iPad, a stack on
 iPhone, with the same glass cards. It talks to the Mac app, which is the hub (the "main" server): taps on the
 phone open agents in the Mac's Rex.
 
