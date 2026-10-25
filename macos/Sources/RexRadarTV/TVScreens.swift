@@ -6,6 +6,7 @@ import SwiftUI
 struct TVAgentsScreen: View {
   let client: HubClient
   @FocusState private var focused: String?
+  @FocusState private var settingsFocused: Bool
   @State private var answering: Agent?
   @State private var deciding: Agent?
 
@@ -87,11 +88,30 @@ struct TVAgentsScreen: View {
         Text(summary).foregroundStyle(.secondary)
       }
       Spacer()
-      NavigationLink {
-        TVSettings(client: client)
-      } label: {
-        Label("Settings", systemImage: "gearshape")
+      HStack(spacing: 40) {
+        // The time now, beside "updated …": a TV has no menu bar clock to compare against.
+        TimelineView(.everyMinute) { context in
+          Text(context.date, format: .dateTime.hour().minute())
+            .font(.body.weight(.medium).monospacedDigit())
+            .foregroundStyle(.secondary)
+        }
+        // Just the gear until it has focus; then "Settings" slides out, pushing the clock aside.
+        NavigationLink {
+          TVSettings(client: client)
+        } label: {
+          HStack(spacing: 12) {
+            Image(systemName: "gearshape")
+            if settingsFocused {
+              Text("Settings").transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+          }
+          .accessibilityLabel("Settings")
+        }
+        // A circle around the gear alone, a capsule once the label shows.
+        .buttonBorderShape(settingsFocused ? .capsule : .circle)
+        .focused($settingsFocused)
       }
+      .animation(.spring(duration: 0.35), value: settingsFocused)
     }
   }
 
