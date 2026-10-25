@@ -15,7 +15,7 @@
   <key>CFBundleURLTypes</key>
   <array>
     <dict>
-      <key>CFBundleURLName</key><string>house.milapan.rex-radar</string>
+      <key>CFBundleURLName</key><string>$(BUNDLE_PREFIX).rex-radar</string>
       <key>CFBundleURLSchemes</key><array><string>rexradar</string></array>
     </dict>
   </array>

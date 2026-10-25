@@ -12,6 +12,7 @@ DEVELOPMENT_TEAM=<team id> macos/scripts/build.sh --install    # signed Mac app 
 macos/bundle.sh [--install]                                    # Mac app only via SwiftPM, ad-hoc signed, no widget
 ```
 
+- `BUNDLE_PREFIX` (default `house.milapan`, the author's) prefixes every bundle ID and App Group. It's a build setting in `project.yml`, overridable on the `xcodebuild` command line or via the environment for `build.sh`/`bundle.sh`. Never hard-code `house.milapan` in plists, entitlements or code.
 - `macos/project.yml` is an XcodeGen spec. `build.sh` runs `xcodegen generate`, and `RexRadar.xcodeproj` is gitignored. To add targets or change their sources, edit `project.yml`, not the generated project.
 - Package.swift builds only the Mac app, from `Sources/` minus the widget, iOS and watch folders. Code that compiles under SwiftPM can still fail under Xcode in another target, so check both.
 - iOS and watchOS have no script. Run `cd macos && xcodegen generate`, then `xcodebuild -project RexRadar.xcodeproj -scheme RexRadarMobile …`. The watch app is embedded in the iOS app.

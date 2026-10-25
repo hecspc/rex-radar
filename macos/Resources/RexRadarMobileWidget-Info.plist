@@ -9,7 +9,7 @@
   <key>CFBundlePackageType</key><string>XPC!</string>
   <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
   <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
-  <key>RexRadarAppGroup</key><string>group.house.milapan.rex-radar</string>
+  <key>RexRadarAppGroup</key><string>group.$(BUNDLE_PREFIX).rex-radar</string>
   <key>NSAppTransportSecurity</key>
   <dict><key>NSAllowsLocalNetworking</key><true/></dict>
   <key>NSExtension</key>

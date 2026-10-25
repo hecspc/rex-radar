@@ -4,6 +4,6 @@
 <dict>
   <!-- The iOS app shares its paired Macs and agents with its widget here. -->
   <key>com.apple.security.application-groups</key>
-  <array><string>group.house.milapan.rex-radar</string></array>
+  <array><string>group.$(BUNDLE_PREFIX).rex-radar</string></array>
 </dict>
 </plist>

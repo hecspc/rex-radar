@@ -63,7 +63,7 @@ final class Store: ObservableObject {
   var attentionCount: Int { rows.filter { !$0.stale && $0.state.needsAttention }.count }
 
   /// The Rex app to switch: this Mac's, by its device name. Override with
-  /// `defaults write house.milapan.rex-radar clientLabel <label>`.
+  /// `defaults write <bundle id> clientLabel <label>` (house.milapan.rex-radar by default).
   var clientLabel: String { Preferences.shared.clientLabel }
 
   /// Shows the row's pane in the Rex app, off the main thread (it runs the rex CLI).

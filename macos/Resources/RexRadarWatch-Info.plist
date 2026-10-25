@@ -10,8 +10,8 @@
   <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
   <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
   <key>WKApplication</key><true/>
-  <key>WKCompanionAppBundleIdentifier</key><string>house.milapan.rex-radar.ios</string>
-  <key>RexRadarAppGroup</key><string>group.house.milapan.rex-radar.watch</string>
+  <key>WKCompanionAppBundleIdentifier</key><string>$(BUNDLE_PREFIX).rex-radar.ios</string>
+  <key>RexRadarAppGroup</key><string>group.$(BUNDLE_PREFIX).rex-radar.watch</string>
   <key>NSAppTransportSecurity</key>
   <dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>

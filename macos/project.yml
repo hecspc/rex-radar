@@ -1,9 +1,10 @@
 # XcodeGen spec for Rex Radar: the menu bar app and its desktop widget.
 # scripts/build.sh generates RexRadar.xcodeproj from it; the project isn't checked in.
-# DEVELOPMENT_TEAM comes from the environment (your Apple Development team ID).
+# DEVELOPMENT_TEAM comes from the environment (your Apple Development team ID). BUNDLE_PREFIX is the
+# reverse-DNS prefix of every bundle ID and App Group: set your own (BUNDLE_PREFIX=com.example on the
+# xcodebuild command line, or in the environment for scripts/build.sh), since IDs belong to one team.
 name: RexRadar
 options:
-  bundleIdPrefix: house.milapan
   deploymentTarget:
     macOS: "26.0"
     iOS: "17.0"
@@ -17,7 +18,9 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
     CODE_SIGN_STYLE: Automatic
-    APP_GROUP: "$(DEVELOPMENT_TEAM).house.milapan.rex-radar"
+    BUNDLE_PREFIX: house.milapan
+    # The Mac App Group is team-prefixed; iOS and watchOS App Groups are group.<prefix>.….
+    APP_GROUP: "$(DEVELOPMENT_TEAM).$(BUNDLE_PREFIX).rex-radar"
     ENABLE_HARDENED_RUNTIME: YES
     GENERATE_INFOPLIST_FILE: NO
     DEAD_CODE_STRIPPING: YES
@@ -33,7 +36,7 @@ targets:
       - path: Resources/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).rex-radar
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_NAME: RexRadar
         INFOPLIST_FILE: Resources/RexRadar-Info.plist
@@ -50,7 +53,7 @@ targets:
       - path: Sources/Shared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.widget
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).rex-radar.widget
         PRODUCT_NAME: RexRadarWidget
         INFOPLIST_FILE: Resources/RexRadarWidget-Info.plist
         CODE_SIGN_ENTITLEMENTS: Resources/RexRadarWidget.entitlements
@@ -68,7 +71,7 @@ targets:
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.ios
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).rex-radar.ios
         PRODUCT_NAME: RexRadarMobile
         INFOPLIST_FILE: Resources/RexRadarMobile-Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -89,7 +92,7 @@ targets:
       - path: Sources/Shared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.ios.widget
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).rex-radar.ios.widget
         PRODUCT_NAME: RexRadarMobileWidget
         INFOPLIST_FILE: Resources/RexRadarMobileWidget-Info.plist
         CODE_SIGN_ENTITLEMENTS: Resources/RexRadarMobileWidget.entitlements
@@ -112,7 +115,7 @@ targets:
       - path: Resources/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.ios.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).rex-radar.ios.watchkitapp
         PRODUCT_NAME: RexRadarWatch
         INFOPLIST_FILE: Resources/RexRadarWatch-Info.plist
         CODE_SIGN_ENTITLEMENTS: Resources/RexRadarWatch.entitlements
@@ -133,7 +136,7 @@ targets:
           - SkillPicker.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.ios.watchkitapp.widget
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).rex-radar.ios.watchkitapp.widget
         PRODUCT_NAME: RexRadarWatchWidget
         INFOPLIST_FILE: Resources/RexRadarWatchWidget-Info.plist
         CODE_SIGN_ENTITLEMENTS: Resources/RexRadarWatchWidget.entitlements

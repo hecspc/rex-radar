@@ -6,7 +6,7 @@ struct SharedState: Codable, Equatable {
   var rows: [Row]
   var writtenAt: Date
 
-  /// `<team id>.house.milapan.rex-radar`, from the RexRadarAppGroup key that the build fills in.
+  /// `<team id>.<bundle prefix>.rex-radar`, from the RexRadarAppGroup key that the build fills in.
   static var groupID: String? { Bundle.main.object(forInfoDictionaryKey: "RexRadarAppGroup") as? String }
 
   static var url: URL? {
