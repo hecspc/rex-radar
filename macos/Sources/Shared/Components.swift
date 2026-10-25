@@ -19,12 +19,14 @@ struct StatePill: View {
 /// A rounded glass card, the panel's and window's building block.
 struct GlassCard<Content: View>: View {
   var padding: CGFloat = 14
+  /// Grow to the height it's offered (a grid row's), content at the top.
+  var fillHeight = false
   @ViewBuilder var content: Content
 
   var body: some View {
     content
       .padding(padding)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(maxWidth: .infinity, maxHeight: fillHeight ? .infinity : nil, alignment: .topLeading)
       .glassBackground(in: RoundedRectangle(cornerRadius: 18))
   }
 }
@@ -53,9 +55,11 @@ struct HeroCard: View {
   var answer: (() -> Void)? = nil
   /// Set when a skill can be sent to it from here: shows a Skill button beside Open.
   var skill: (() -> Void)? = nil
+  /// In a grid: as tall as the row, with the buttons along the bottom.
+  var fillHeight = false
 
   var body: some View {
-    GlassCard(padding: 16) {
+    GlassCard(padding: 16, fillHeight: fillHeight) {
       VStack(alignment: .leading, spacing: 10) {
         HStack(alignment: .top) {
           StatePill(row: row)
@@ -73,6 +77,7 @@ struct HeroCard: View {
         if let msg = row.pane.msg, !msg.isEmpty {
           Text(msg).font(.callout).foregroundStyle(.secondary).lineLimit(3).fixedSize(horizontal: false, vertical: true)
         }
+        if fillHeight { Spacer(minLength: 0) }
         if let answer, let n = row.questions?.questions.count {
           Button(action: answer) {
             Label("Answer \(n) question\(n == 1 ? "" : "s")", systemImage: "questionmark.bubble").frame(maxWidth: .infinity)

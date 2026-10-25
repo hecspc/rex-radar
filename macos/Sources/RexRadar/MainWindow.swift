@@ -80,11 +80,11 @@ struct MainWindow: View {
     } else {
       ScrollView {
         GlassEffectContainer(spacing: 16) {
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
+          LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16, alignment: .top)], spacing: 16) {
             ForEach(rows) { row in
               HeroCard(
                 row: row, open: { store.open(row) }, answer: row.questions == nil ? nil : { store.startAnswering(row) },
-                skill: row.takesSkills ? { store.picking = row } : nil)
+                skill: row.takesSkills ? { store.picking = row } : nil, fillHeight: true)
             }
           }
           .padding(20)
