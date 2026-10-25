@@ -1,5 +1,22 @@
+import AppKit
 import ServiceManagement
 import SwiftUI
+
+/// Where Rex Radar shows itself: its menu bar icon, its Dock icon, or both (the default).
+enum AppPresence: String, CaseIterable, Identifiable {
+  case dockAndMenuBar, menuBar, dock
+
+  var id: Self { self }
+  var title: String {
+    switch self {
+    case .dockAndMenuBar: "Dock and menu bar"
+    case .menuBar: "Menu bar"
+    case .dock: "Dock"
+    }
+  }
+  var showsMenuBar: Bool { self != .dock }
+  var showsDock: Bool { self != .menuBar }
+}
 
 /// Settings state (an ObservableObject: the app target avoids SwiftUI's macros).
 @MainActor
@@ -23,10 +40,25 @@ final class Preferences: ObservableObject {
     didSet { UserDefaults.standard.set(allowPhoneSkills, forKey: "allowPhoneSkills") }
   }
 
+  @Published var presence: AppPresence {
+    didSet {
+      UserDefaults.standard.set(presence.rawValue, forKey: "presence")
+      applyDock()
+      // Turning the Dock icon off deactivates the app: keep Settings in front.
+      NSApp.activate()
+    }
+  }
+
   init() {
+    presence = UserDefaults.standard.string(forKey: "presence").flatMap(AppPresence.init) ?? .dockAndMenuBar
     allowPhoneAnswers = UserDefaults.standard.bool(forKey: "allowPhoneAnswers")
     allowPhoneSkills = UserDefaults.standard.bool(forKey: "allowPhoneSkills")
     clientLabel = UserDefaults.standard.string(forKey: "clientLabel") ?? Host.current().localizedName ?? ""
+  }
+
+  /// The Info.plist starts the app as a menu bar agent (LSUIElement); this adds the Dock icon.
+  func applyDock() {
+    NSApp.setActivationPolicy(presence.showsDock ? .regular : .accessory)
   }
 
   var opensAtLogin: Bool { loginItem == .enabled || loginItem == .requiresApproval }
@@ -64,10 +96,14 @@ struct SettingsView: View {
         if let error = prefs.loginError {
           Text(error).foregroundStyle(.red).font(.caption)
         }
+        Picker("Show Rex Radar in", selection: $prefs.presence) {
+          ForEach(AppPresence.allCases) { Text($0.title).tag($0) }
+        }
       } header: {
         Text("General")
       } footer: {
-        Text("Rex Radar starts its watchers and the iPhone & iPad hub when it opens.")
+        Text("Rex Radar starts its watchers and the iPhone & iPad hub when it opens. Without the menu bar icon, "
+          + "click its Dock icon to open the window.")
       }
 
       Section {

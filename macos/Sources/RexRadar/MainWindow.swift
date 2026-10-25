@@ -13,6 +13,7 @@ struct MainWindow: View {
 
   @ObservedObject var store: Store
   @StateObject private var model = WindowModel()
+  @Environment(\.openWindow) private var openWindow
 
   var body: some View {
     NavigationSplitView {
@@ -35,6 +36,7 @@ struct MainWindow: View {
       detail
     }
     .frame(minWidth: 720, minHeight: 460)
+    .onAppear { WindowOpener.openWindow = openWindow }
     .sheet(isPresented: Binding(get: { store.answering != nil }, set: { if !$0 { store.stopAnswering() } })) {
       if let (row, draft) = store.answering {
         ScrollView {

@@ -6,6 +6,7 @@ import SwiftUI
 struct RexRadarApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
   @StateObject private var store = Store.shared
+  @ObservedObject private var prefs = Preferences.shared
 
   init() {
     if let dir = Render.directory {
@@ -17,7 +18,7 @@ struct RexRadarApp: App {
   }
 
   var body: some Scene {
-    MenuBarExtra {
+    MenuBarExtra(isInserted: Binding(get: { prefs.presence.showsMenuBar }, set: { _ in })) {
       MenuPanel(store: store)
     } label: {
       MenuBarLabel(store: store)
@@ -28,6 +29,8 @@ struct RexRadarApp: App {
       MainWindow(store: store)
     }
     .defaultSize(width: 860, height: 560)
+    // Without a menu bar icon, the window is the app: open it at launch.
+    .defaultLaunchBehavior(Preferences.shared.presence.showsMenuBar ? .suppressed : .presented)
 
     Settings {
       SettingsView(prefs: .shared)
@@ -35,8 +38,21 @@ struct RexRadarApp: App {
   }
 }
 
+/// SwiftUI opens windows only from a view: the menu bar label (or the window, without the menu
+/// bar icon) keeps the action, so a click on the Dock icon can open the window too.
+@MainActor
+enum WindowOpener {
+  static var openWindow: OpenWindowAction?
+
+  static func showMain() {
+    openWindow?(id: "main")
+    NSApp.activate()
+  }
+}
+
 struct MenuBarLabel: View {
   @ObservedObject var store: Store
+  @Environment(\.openWindow) private var openWindow
 
   var body: some View {
     let count = store.attentionCount
@@ -44,12 +60,18 @@ struct MenuBarLabel: View {
       Image(nsImage: MenuIcon.image(alert: count > 0))
       if count > 0 { Text("\(count)") }
     }
+    .onAppear { WindowOpener.openWindow = openWindow }
   }
 }
 
 /// Starts the hub for iPhone and iPad; widget taps arrive as rexradar:// URLs.
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private var sigterm: DispatchSourceSignal?
+
+  func applicationWillFinishLaunching(_ notification: Notification) {
+    guard Render.directory == nil, AnswerCommand.arguments == nil else { return }
+    MainActor.assumeIsolated { Preferences.shared.applyDock() }
+  }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     // The --render and --answer test modes run beside the real app: no watchers, no hub.
@@ -70,6 +92,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       try? SMAppService.mainApp.register()
       UserDefaults.standard.set(true, forKey: "loginItemRegistered")
     }
+  }
+
+  /// A click on the Dock icon with no window open opens the window.
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+    if !hasVisibleWindows { MainActor.assumeIsolated { WindowOpener.showMain() } }
+    return true
   }
 
   func applicationWillTerminate(_ notification: Notification) {

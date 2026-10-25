@@ -200,6 +200,8 @@ macos/bundle.sh --install                                     # app only, comman
 - **Panel** (Liquid Glass): the most urgent agent as a card with **Open in Rex** and **Skill**, the others in a card
   per server (right-click one for **Send Skill…**). Opening a pane closes the panel.
 - **Window**: a server sidebar and a card per agent.
+- **Dock and menu bar**: Settings → **Show Rex Radar in** picks the Dock, the menu bar, or both (the default).
+  Clicking the Dock icon opens the window; without the menu bar icon the window also opens at launch.
 - **Widget** (small, medium, large): agents by urgency; tap one to open it in Rex (`rexradar://open?id=…`).
   The sandboxed widget can't read the snapshots, so the app copies the merged rows into the App Group
   `<team>.house.milapan.rex-radar` and reloads the widget when they change.
