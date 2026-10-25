@@ -78,7 +78,7 @@ struct Row: Codable, Identifiable, Hashable {
   var source: String
   var server: String?
   var stale: Bool
-  /// The question list Claude is asking here, when it is (from the questions hook).
+  /// The question list the agent is asking here, when Rex Radar can answer it (see PendingQuestions).
   var questions: PendingQuestions?
   /// The permission it waits on, when it's one Rex Radar can allow or deny.
   var permission: PendingPermission?

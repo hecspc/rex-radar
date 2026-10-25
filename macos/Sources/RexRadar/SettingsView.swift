@@ -113,13 +113,14 @@ struct SettingsView: View {
       }
 
       Section {
-        Toggle("Let iPhone & iPad answer Claude's questions", isOn: $prefs.allowPhoneAnswers)
+        Toggle("Let iPhone & iPad answer agents' questions", isOn: $prefs.allowPhoneAnswers)
       } header: {
         Text("Questions")
       } footer: {
         Text(
-          "Answering types into the Claude pane in Rex. Rex Radar only types for a pane that's showing a question "
-            + "list, only option numbers, Tab and one short line, and checks Claude's review before submitting.")
+          "Answering types into the agent's pane in Rex (Claude Code, Codex or Antigravity on this Mac). Rex Radar "
+            + "only types for a pane that's showing the question list, only option numbers, Tab, arrows, Enter and one "
+            + "short line, and checks the form before typing and Claude's review before submitting.")
       }
 
       Section {

@@ -76,7 +76,7 @@ struct AgentDetail: View {
   }
 }
 
-/// Claude's question list on the wrist: a section per question, tap to pick, then Send.
+/// An agent's question list on the wrist: a section per question, tap to pick, then Send.
 /// Free text isn't offered here.
 struct WatchAnswer: View {
   let client: HubClient

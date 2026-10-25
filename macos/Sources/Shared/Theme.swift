@@ -55,15 +55,7 @@ extension Row {
     return tab.isEmpty ? label : "\(tab) › \(label)"
   }
 
-  var appLabel: String {
-    switch pane.app {
-    case "claude-code": "Claude Code"
-    case "codex": "Codex"
-    case "antigravity": "Antigravity"
-    case let app?: app
-    case nil: "Agent"
-    }
-  }
+  var appLabel: String { Pane.appLabel(pane.app) }
 
   /// The agent's own logo in Resources/AgentIcons.xcassets, for the agents that have one.
   var appImage: String? {
@@ -92,6 +84,19 @@ extension Row {
     case "codex": Color(red: 0.16, green: 0.70, blue: 0.64)
     case "antigravity": Color(red: 0.26, green: 0.52, blue: 0.96)
     default: .secondary
+    }
+  }
+}
+
+extension Pane {
+  /// The agent's name for a Rex app id.
+  static func appLabel(_ app: String?) -> String {
+    switch app {
+    case "claude-code": "Claude Code"
+    case "codex": "Codex"
+    case "antigravity": "Antigravity"
+    case let app?: app
+    case nil: "Agent"
     }
   }
 }

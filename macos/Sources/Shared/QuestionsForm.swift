@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Claude's question list as a form: a choice per single-choice question (or your own words),
+/// An agent's question list as a form: a choice per single-choice question (or your own words),
 /// checkboxes per multi-select one, then Send.
 struct QuestionsForm: View {
   @ObservedObject var draft: AnswerDraft
@@ -55,7 +55,7 @@ struct QuestionsForm: View {
             draft.sending = false
           }
         } label: {
-          if draft.sending { ProgressView().controlSize(.small) } else { Label("Send to Claude", systemImage: "paperplane.fill") }
+          if draft.sending { ProgressView().controlSize(.small) } else { Label("Send to \(draft.questions.agentName)", systemImage: "paperplane.fill") }
         }
         .glassProminentButtonStyle()
         .disabled(draft.answers == nil || draft.sending)

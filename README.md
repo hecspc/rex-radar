@@ -3,7 +3,7 @@
 A glanceable view of the coding agents running in [Rex](https://www.superlogical.com/rex) terminal sessions,
 across several Rex servers: a macOS menu bar app and desktop widget, an iPhone and iPad app with widgets, and an
 Apple Watch app with complications. See which agent is blocked, done or working, jump to its pane in Rex, answer
-Claude's questions and send agents skills, from wherever you are.
+its questions and send agents skills, from wherever you are.
 
 > A community project, not affiliated with Superlogical. Rex is in beta and its API changes weekly, so things
 > can break with a Rex update; what's been verified, and on which builds, is noted below.
@@ -27,7 +27,8 @@ Claude's questions and send agents skills, from wherever you are.
 - **Every agent at a glance**, most urgent first: blocked, error, done, working, idle; with Claude's one-line
   summary and conversation topic.
 - **Open in Rex**: click or tap an agent to switch your Mac's Rex app to its pane, on any of your Rex servers.
-- **Answer Claude's questions** (its AskUserQuestion forms) from the Mac, iPhone, iPad, watch or Apple TV.
+- **Answer agents' questions** (Claude Code's AskUserQuestion, Codex's and Antigravity's question forms) from
+  the Mac, iPhone, iPad, watch or Apple TV.
 - **Send skills**: pick any skill or slash command Claude Code, Codex or Antigravity offers in a pane (project,
   user and plugin), filtered as you type, and send it with arguments.
 - **Widgets and complications** on the Mac desktop, Home and Lock Screen, and the watch face.
@@ -65,7 +66,7 @@ DEVELOPMENT_TEAM=<team id> BUNDLE_PREFIX=com.yourname scripts/build.sh --install
 - The app starts a watcher for this Mac's Rex server on launch. Add remote Rex servers in the window's
   **Manage Servers…** (they need to be hosts your Rex app is connected to).
 - To answer Claude's question lists, install the hook in `hooks/claude-rex-questions` (needs `jq`); see
-  [Answering Claude's questions](#answering-claudes-questions).
+  [Answering questions](#answering-questions). Codex and Antigravity need nothing installed.
 
 **iPhone, iPad and Apple Watch**: generate the project and build the `RexRadarMobile` scheme (the watch app is
 embedded) to your device:
@@ -161,7 +162,8 @@ start, `working`, `blocked` with `kind=permission` and the command in `msg` ("Ap
 `done` with the reply in `msg`, all with `app=antigravity`. It sets no terminal title, so the card shows `msg`.
 Gemini CLI is deprecated in favour of it and was not tested.
 
-Answering questions stays Claude Code only; permissions and skills work for all three.
+Codex (in Plan mode) and Antigravity also report `blocked` with `kind=question` while they ask; see
+[Answering questions](#answering-questions). Answering, permissions and skills work for all three.
 
 ### Opening a tab in the right app
 
@@ -319,10 +321,13 @@ reuses the iOS `HubClient`, like the watch. Skills aren't offered.
   The pane check compares the screen without line breaks or the `│` border, because the wrapped question
   never matched as one line and the Mac refused the answer.
 
-### Answering Claude's questions
+### Answering questions
 
-When Claude asks a question list (its AskUserQuestion tool), Rex Radar shows it as a form (Mac panel, window,
-iPhone and iPad) and answers it by typing into the pane, as tested on Claude Code 2.1.310:
+When an agent asks a question list, Rex Radar shows it as a form (Mac panel and window, iPhone, iPad, Apple Watch
+and Apple TV) and answers it by typing into the pane. Rex's status carries at most the first question, so the
+whole list comes from the agent on this Mac: only panes on the Mac's own Rex server can be answered.
+
+**Claude Code** (AskUserQuestion), as tested on Claude Code 2.1.310:
 
 - a single-choice option's number selects it and moves on; free text is the number after the options, the text
   and Enter (single-choice only: a multi-select question doesn't take typed text);
@@ -332,13 +337,47 @@ iPhone and iPad) and answers it by typing into the pane, as tested on Claude Cod
 
 Before typing, Rex must report the pane as blocked on a question and the screen must show the first question;
 answers are validated (one per question, options in range, one short line of text). A mismatch at review leaves
-the form open in Rex. Phones can answer only when **Settings → Let iPhone & iPad answer Claude's questions** is
+the form open in Rex. Phones can answer only when **Settings → Let iPhone & iPad answer agents' questions** is
 on (off by default): `POST /v1/answer?id=…` answers `403` otherwise.
 
 `hooks/claude-rex-questions` saves the full question list per pane (Rex's status carries only the first
 question). Register it in `~/.claude/settings.json`: `ask` on PreToolUse with matcher `AskUserQuestion`, `done` on
 PostToolUse and PostToolUseFailure (same matcher), Stop and UserPromptSubmit (a cancelled list runs no post-tool
 hook).
+
+**Codex** (`request_user_input`), verified 2026-10-25 with codex-cli 0.164.0 (`Sources/RexRadar/AgentQuestions.swift`):
+
+- Codex has the tool only in Plan mode (Shift+Tab): one to three single-choice questions, each with two or three
+  options, to which its form adds "None of the above" with a note. There is no multi-select. Rex reports `blocked`,
+  `kind=question`, `app=codex` and no `msg`. (`request_user_input_async`, which doesn't wait, isn't a form.)
+- The form shows one question at a time ("Question 1/3 (3 unanswered)"). An option's number picks it and moves
+  on; on the last question it submits them all, with no review screen. Free text is a note on "None of the
+  above": Down to it, Tab, the text, Enter.
+- Where the list comes from: the Codex TUI runs its threads in a shared `codex app-server` daemon, and hooks run
+  in that daemon with the environment (`REX_BLOCK`) of whichever pane started it, so no hook can tell which pane
+  asks, and the TUI process holds no thread file open. The call is in the thread's rollout,
+  `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` (`$CODEX_HOME`), as a `function_call` named
+  `request_user_input`, written just before Rex reports the question. Rex Radar reads the rollouts written since,
+  takes the newest unanswered call (no `function_call_output` with its `call_id`) whose question the screen shows
+  ("Question k/N" and that question's text), and prefers a rollout started in the pane's working directory.
+
+**Antigravity** (`ask_question`), verified 2026-10-25 with agy 1.4.7 (tested in Plan mode):
+
+- Questions with plain options, single or multiple choice, to which its form adds "Write-in...". Rex reports
+  `blocked`, `kind=question`, `app=antigravity`, with the first question in `msg`.
+- The form lists every question ("? …") above the current one ("Question 1/3: …"). On a single-choice question
+  an option's number picks it and moves on; on a multi-select one numbers toggle and Enter moves on (with none
+  ticked, it skips). Free text is the "Write-in..." number, the text and Enter. On the last question the pick or
+  Enter submits them all, with no review screen.
+- Where the list comes from: Antigravity has no hooks. Each conversation is a SQLite file,
+  `~/.gemini/antigravity-cli/conversations/<id>.db`, which the `agy` process (Rex's `owner.pid`) keeps open. While
+  it asks, the conversation's latest step is the call, and its payload holds the JSON arguments
+  (`{"questions":[{"question","options","is_multi_select"}]}`); Rex's `msg` must equal the first question.
+
+For both, before typing Rex must report the question and the screen must show "Question 1/N" with the first
+question (if you've already moved on in Rex, it refuses: finish there); afterwards Rex must no longer report it.
+Free text stays single-choice only, as for Claude. Test without clicking: `RexRadar --answer <block id>
+'[{"options":[1]},{"text":"Teal"}]'`.
 
 ### Allowing permissions
 

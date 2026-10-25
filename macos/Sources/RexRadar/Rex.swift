@@ -86,7 +86,7 @@ enum Rex {
     }
   }
 
-  // MARK: Answering Claude's questions
+  // MARK: Answering questions
 
   /// The pane's screen as text.
   static func screen(_ row: Row) throws -> String {
@@ -131,6 +131,9 @@ enum Rex {
   /// on. A list ends on a review screen, which must show exactly our answers before "1" submits;
   /// a single single-choice question submits as soon as it's picked.
   static func answer(_ row: Row, questions: PendingQuestions, answers: [QuestionAnswer]) throws {
+    if questions.app == "codex" || questions.app == "antigravity" {
+      return try answerOneByOne(row, questions: questions, answers: answers)
+    }
     let qs = questions.questions
     guard let first = qs.first else { throw AnswerError.notWaiting }
     // Still asking the same thing? Rex must say it waits on a question, and the screen must show it.

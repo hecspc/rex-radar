@@ -31,7 +31,7 @@ final class HubClient {
   private(set) var hubs: [Hub] = []
   private(set) var mainID: UUID?
   private(set) var agentsByHub: [UUID: [Row]] = [:]
-  /// Per Mac: whether it lets this device answer Claude's questions (its Settings).
+  /// Per Mac: whether it lets this device answer agents' questions (its Settings).
   private(set) var answeringByHub: [UUID: Bool] = [:]
   /// Per Mac: whether it lets this device send skills to agents (its Settings).
   private(set) var skillsByHub: [UUID: Bool] = [:]
@@ -222,7 +222,7 @@ final class HubClient {
   /// ran) allows it.
   func canAnswer(_ agent: Agent) -> Bool { agent.row.questions != nil && (answeringByHub[agent.hubID] ?? false) }
 
-  /// Sends the answers to the Mac that reported the agent; it types them into Claude's form.
+  /// Sends the answers to the Mac that reported the agent; it types them into the agent's form.
   func answer(_ agent: Agent, _ answers: [QuestionAnswer]) async throws {
     guard let hub = hubs.first(where: { $0.id == agent.hubID }), let base = hub.base,
       var c = URLComponents(url: base.appending(path: "v1/answer"), resolvingAgainstBaseURL: false)

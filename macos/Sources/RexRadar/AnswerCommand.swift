@@ -40,6 +40,9 @@ enum AnswerCommand {
             print("sent")
           }
         } else {
+          // Codex's and Antigravity's questions are read in the background too.
+          try? await Task.sleep(for: .seconds(1.5))
+          store.reload()
           guard let row = store.rows.first(where: { $0.pane.blockId.hasSuffix(block) }) else {
             throw AnswerError.notWaiting
           }

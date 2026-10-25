@@ -1,11 +1,20 @@
 import Foundation
 
-/// The question list Claude is asking in a pane (its AskUserQuestion tool), as the
-/// hooks/claude-rex-questions hook saves it.
+/// The question list an agent is asking in a pane: Claude Code's AskUserQuestion (as the
+/// hooks/claude-rex-questions hook saves it), Codex's request_user_input or Antigravity's
+/// ask_question (both read from the agent's own records on the Mac).
 struct PendingQuestions: Codable, Hashable {
   var toolUseId: String?
   var askedAt: String?
   var questions: [AgentQuestion]
+  /// The Rex app id of the agent asking ("claude-code" when the hook file has none).
+  var app: String?
+
+  /// Agents whose question forms were checked to take the keys Rex.answer types: Claude Code
+  /// 2.1.310, Codex 0.164.0 and Antigravity 1.4.7, on 2026-10-25.
+  static let apps: Set<String> = ["claude-code", "codex", "antigravity"]
+
+  var agentName: String { Pane.appLabel(app ?? "claude-code") }
 }
 
 struct AgentQuestion: Codable, Hashable {
@@ -23,7 +32,8 @@ struct AgentQuestion: Codable, Hashable {
 }
 
 /// One answer per question: chosen options (0-based), or free text for a single-choice question.
-/// Free text on a multi-select question isn't offered: Claude's form doesn't take it by typing.
+/// Free text on a multi-select question isn't offered: Claude's form doesn't take it by typing,
+/// and Codex asks only single-choice questions.
 struct QuestionAnswer: Codable, Hashable {
   var options: [Int]?
   var text: String?
@@ -36,6 +46,7 @@ struct QuestionAnswer: Codable, Hashable {
 enum AnswerError: LocalizedError, Equatable {
   case invalid(String)
   case notWaiting
+  case notAtStart
   case reviewMismatch(String)
   case stillWaiting
 
@@ -43,8 +54,9 @@ enum AnswerError: LocalizedError, Equatable {
     switch self {
     case .invalid(let why): "Invalid answer: \(why)"
     case .notWaiting: "That pane isn't asking these questions anymore."
+    case .notAtStart: "The form in Rex has moved on from the first question; finish it there."
     case .reviewMismatch(let what): "Claude's review didn't match (\(what)); left it open in Rex for you."
-    case .stillWaiting: "Claude still shows the questions; check the pane in Rex."
+    case .stillWaiting: "The agent still shows the questions; check the pane in Rex."
     }
   }
 }

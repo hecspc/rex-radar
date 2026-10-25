@@ -236,7 +236,7 @@ struct SettingsSheet: View {
   }
 }
 
-/// Claude's question list as a form, sent to the Mac that reported it.
+/// An agent's question list as a form, sent to the Mac that reported it.
 struct AnswerSheet: View {
   let client: HubClient
   let agent: Agent

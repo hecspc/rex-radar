@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Every agent from every paired Mac as a grid of cards, most urgent first. Select opens one in
-/// Rex, shows Claude's questions when they can be answered from here, or asks to allow or deny
+/// Rex, shows an agent's questions when they can be answered from here, or asks to allow or deny
 /// the permission an agent waits on.
 struct TVAgentsScreen: View {
   let client: HubClient
@@ -199,7 +199,7 @@ struct TVSettings: View {
   }
 }
 
-/// Claude's question list, full screen and answered with the remote: the agent on the left, its
+/// An agent's question list, full screen and answered with the remote: the agent on the left, its
 /// questions on the right. Picking an option of a single-choice question moves on to the next
 /// question, then to Send. Free text isn't offered, as on the watch; Open in Rex is there for
 /// anything else. Menu goes back.
@@ -230,7 +230,7 @@ struct TVAnswer: View {
         if let topic = agent.row.topic {
           Label(topic, systemImage: "bubble.left").font(.callout)
         }
-        Text("Claude is asking. Pick an answer for each question, then Send.")
+        Text("\(agent.row.appLabel) is asking. Pick an answer for each question, then Send.")
           .font(.callout).foregroundStyle(.secondary).padding(.top, 24)
       }
       .frame(width: 560, alignment: .leading)

@@ -132,7 +132,7 @@ final class Store: ObservableObject {
     if let row = rows.first(where: { $0.id == id }) { open(row) }
   }
 
-  /// The question list the hook saved for a pane, but only while Rex says the pane is waiting on
+  /// The question list Claude's hook saved for a pane, but only while Rex says the pane is waiting on
   /// a question: a cancelled list leaves its file behind. The hook runs on this Mac, so only this
   /// Mac's own Rex server has them.
   private func questions(for pane: Pane, server: String?) -> PendingQuestions? {
@@ -142,6 +142,34 @@ final class Store: ObservableObject {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
     return try? decoder.decode(PendingQuestions.self, from: data)
+  }
+
+  /// Question lists read from Codex's and Antigravity's own records (AgentQuestions), by pane
+  /// and status update: read once per question, off the main thread, and again after 5 s while
+  /// nothing is found.
+  private var agentQuestions: [String: PendingQuestions] = [:]
+  private var readingQuestions: Set<String> = []
+
+  private func agentQuestions(for row: Row) -> PendingQuestions? {
+    let pane = row.pane
+    guard row.server == nil, !row.stale, pane.state == "blocked", pane.kind == "question", let app = pane.app,
+      app != "claude-code", PendingQuestions.apps.contains(app)
+    else { return nil }
+    let key = row.id + "@" + (pane.updatedAt ?? "")
+    if let questions = agentQuestions[key] { return questions }
+    if readingQuestions.insert(key).inserted {
+      Task.detached { [weak self] in
+        let questions = AgentQuestions.load(row)
+        if questions == nil { try? await Task.sleep(for: .seconds(5)) }
+        await MainActor.run {
+          self?.readingQuestions.remove(key)
+          guard let questions else { return }
+          self?.agentQuestions[key] = questions
+          self?.reload()
+        }
+      }
+    }
+    return nil
   }
 
   /// Answers the question list in a pane by typing into it (see Rex.answer). Throws on refusal.
@@ -170,6 +198,7 @@ final class Store: ObservableObject {
         rows += s.panes.map {
           var row = Row(pane: $0, source: s.source, server: s.server, stale: stale, questions: questions(for: $0, server: s.server))
           row.permission = stale ? nil : permission(for: row)
+          if row.questions == nil { row.questions = agentQuestions(for: row) }
           return row
         }
       } catch {
@@ -185,6 +214,7 @@ final class Store: ObservableObject {
     }
     let live = Set(rows.map { $0.id + "@" + ($0.pane.updatedAt ?? "") })
     screenPrompts = screenPrompts.filter { live.contains($0.key) }
+    agentQuestions = agentQuestions.filter { live.contains($0.key) }
     self.sources = sources.sorted()
     self.lastError = errors.first
     // Hand the rows to the widget, and wake it only when they changed.

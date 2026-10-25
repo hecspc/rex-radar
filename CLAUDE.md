@@ -45,9 +45,11 @@ Data flows one way: Rex server → Lua watcher → JSON snapshots → Mac app �
 
 `Shared/Permissions.swift` and `Rex.permission`/`Rex.decide`: for Claude Code, Codex and Antigravity (`PendingPermission.apps`) blocked on `kind=permission`, Allow presses `1` and Deny Esc, after checking the prompt is still the one shown. Codex sends no `msg`, so its prompt is read off the screen. Re-test the keys on each agent before adding one to `apps`. Test with `RexRadar --decide <block id> allow|deny`. See README "Allowing permissions".
 
-### Answering Claude's questions
+### Answering questions
 
-`hooks/claude-rex-questions` is a Claude Code hook (PreToolUse `AskUserQuestion` → `ask`; Post/PostFailure, Stop and UserPromptSubmit → `done`). It saves the full question list to `$REX_RADAR_DIR/questions/<REX_BLOCK>.json`, because Rex's status carries only the first question. The hook must never fail or print anything, since hook output reaches Claude. The app answers by typing keystrokes into the pane. The key sequence depends on the Claude Code TUI (number selects, Tab moves between multi-select questions, a review screen then `1`), so check it against the current Claude Code version before changing it. See README "Answering Claude's questions".
+Claude Code, Codex and Antigravity (`PendingQuestions.apps`). For Claude, `hooks/claude-rex-questions` is a Claude Code hook (PreToolUse `AskUserQuestion` → `ask`; Post/PostFailure, Stop and UserPromptSubmit → `done`). It saves the full question list to `$REX_RADAR_DIR/questions/<REX_BLOCK>.json`, because Rex's status carries only the first question. The hook must never fail or print anything, since hook output reaches Claude. The app answers by typing keystrokes into the pane. The key sequence depends on the Claude Code TUI (number selects, Tab moves between multi-select questions, a review screen then `1`), so check it against the current Claude Code version before changing it.
+
+Codex (`request_user_input`, Plan mode only) and Antigravity (`ask_question`) need no hook: `AgentQuestions.swift` reads the list from Codex's rollout files (matched against the screen, since Codex's hooks run in a shared daemon that doesn't know the pane) and from the conversation SQLite file the `agy` process holds open. `Rex.answerOneByOne` types their keys: one question at a time, no review screen. See README "Answering questions".
 
 ## Conventions
 
