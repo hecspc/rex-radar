@@ -35,6 +35,8 @@ final class HubClient {
   private(set) var answeringByHub: [UUID: Bool] = [:]
   /// Per Mac: whether it lets this device send skills to Claude (its Settings).
   private(set) var skillsByHub: [UUID: Bool] = [:]
+  /// Per Mac: whether it lets this device allow or deny agents' permissions (its Settings).
+  private(set) var permissionsByHub: [UUID: Bool] = [:]
   private(set) var errors: [UUID: String] = [:]
   private(set) var updated: Date?
   /// Shown briefly after a tap: "Opened on my-mac".
@@ -154,6 +156,7 @@ final class HubClient {
           agentsByHub[id] = response.rows
           answeringByHub[id] = response.answering ?? false
           skillsByHub[id] = response.skills ?? false
+          permissionsByHub[id] = response.permissions ?? false
           errors[id] = nil
         case .failure(let error):
           errors[id] = error.localizedDescription
@@ -231,6 +234,31 @@ final class HubClient {
     await refresh()
     try? await Task.sleep(for: .seconds(2.5))
     notice = nil
+  }
+
+  // MARK: Permissions
+
+  /// Whether this agent's permission prompt can be allowed or denied from here: its Mac read it
+  /// and allows it.
+  func canDecide(_ agent: Agent) -> Bool { agent.row.permission != nil && (permissionsByHub[agent.hubID] ?? false) }
+
+  /// Asks the agent's Mac to allow or deny the permission this device showed. A refusal (it asks
+  /// something else now, or Settings is off) shows as the notice.
+  func decide(_ agent: Agent, _ decision: PermissionDecision) {
+    guard let prompt = agent.row.permission?.prompt else { return }
+    Task {
+      do {
+        let (url, token) = try endpoint("v1/permission", agent)
+        let body = try JSONEncoder().encode(PermissionReply(decision: decision, prompt: prompt))
+        _ = try await Self.request(url, method: "POST", token: token, body: body)
+        notice = decision == .allow ? "Allowed on \(agent.hubName)" : "Denied on \(agent.hubName)"
+      } catch {
+        notice = "Couldn't \(decision.rawValue): \(error.localizedDescription)"
+      }
+      await refresh()
+      try? await Task.sleep(for: .seconds(2.5))
+      notice = nil
+    }
   }
 
   // MARK: Skills

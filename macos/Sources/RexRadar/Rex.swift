@@ -101,14 +101,18 @@ enum Rex {
     return squeezed(screen).contains(squeezed(text))
   }
 
-  /// Whether Rex says the pane's program waits on a question (OSC 7501 blocked, kind question).
-  static func waitsOnQuestion(_ row: Row) throws -> Bool {
+  /// The pane's OSC 7501 records, as Rex has them now.
+  static func statusRecords(_ row: Row) throws -> [[String: Any]] {
     let status = try call(
       "com.superlogical.terminal.program_status",
       ["session_id": row.pane.sessionId, "block_id": row.pane.blockId, "args": [String: String]()],
       server: row.server) as? [String: Any]
-    let records = status?["records"] as? [[String: Any]] ?? []
-    return records.contains { $0["state"] as? String == "blocked" && $0["kind"] as? String == "question" }
+    return status?["records"] as? [[String: Any]] ?? []
+  }
+
+  /// Whether Rex says the pane's program waits on a question (OSC 7501 blocked, kind question).
+  static func waitsOnQuestion(_ row: Row) throws -> Bool {
+    try statusRecords(row).contains { $0["state"] as? String == "blocked" && $0["kind"] as? String == "question" }
   }
 
   static func key(_ row: Row, _ key: String) throws {
@@ -160,6 +164,33 @@ enum Rex {
     try key(row, "1")
   }
 
+  // MARK: Permissions
+
+  /// The permission the pane's agent asks for right now: Rex says it's blocked on one and the
+  /// screen shows the "1. Yes" option. Its prompt is Rex's message, or the screen's when there's none.
+  static func permission(_ row: Row) throws -> PendingPermission? {
+    guard let app = row.pane.app, PendingPermission.apps.contains(app),
+      let record = try statusRecords(row).first(where: {
+        $0["state"] as? String == "blocked" && $0["kind"] as? String == "permission"
+      })
+    else { return nil }
+    let screen = try screen(row)
+    guard PendingPermission.showsOptions(screen) else { return nil }
+    if let msg = record["msg"] as? String, !msg.isEmpty { return PendingPermission(prompt: msg) }
+    return PendingPermission.prompt(fromScreen: screen).map(PendingPermission.init)
+  }
+
+  /// Allows the permission once ("1", the first option, "Yes") or denies it (Esc), as tested on
+  /// Claude Code 2.1.310, Codex 0.164.0 and Antigravity 1.4.7: only while the agent still asks
+  /// what `prompt` says, and checks the prompt went away.
+  static func decide(_ row: Row, _ decision: PermissionDecision, prompt: String) throws {
+    guard let asked = try permission(row) else { throw PermissionError.notWaiting }
+    guard asked.prompt == prompt else { throw PermissionError.changed }
+    try key(row, decision == .allow ? "1" : "escape")
+    Thread.sleep(forTimeInterval: 1)
+    if try permission(row)?.prompt == prompt { throw PermissionError.stillWaiting }
+  }
+
   // MARK: Skills
 
   /// Where the pane's program runs: the foreground process's working directory.
@@ -173,11 +204,7 @@ enum Rex {
 
   /// Whether the pane's program waits on anything (a question, a permission): typing would answer it.
   static func isBlocked(_ row: Row) throws -> Bool {
-    let status = try call(
-      "com.superlogical.terminal.program_status",
-      ["session_id": row.pane.sessionId, "block_id": row.pane.blockId, "args": [String: String]()],
-      server: row.server) as? [String: Any]
-    return (status?["records"] as? [[String: Any]] ?? []).contains { $0["state"] as? String == "blocked" }
+    try statusRecords(row).contains { $0["state"] as? String == "blocked" }
   }
 
   /// Runs a skill the way you would: types `/name args` at Claude's prompt, then Enter. One Enter

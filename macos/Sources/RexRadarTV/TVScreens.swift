@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// Every agent from every paired Mac as a grid of cards, most urgent first. Select opens one in
-/// Rex, or shows Claude's questions when they can be answered from here.
+/// Rex, shows Claude's questions when they can be answered from here, or asks to allow or deny
+/// the permission an agent waits on.
 struct TVAgentsScreen: View {
   let client: HubClient
   @FocusState private var focused: String?
   @State private var answering: Agent?
+  @State private var deciding: Agent?
 
   var body: some View {
     NavigationStack {
@@ -25,8 +27,15 @@ struct TVAgentsScreen: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 520, maximum: 760), spacing: 40, alignment: .top)], spacing: 40) {
               ForEach(client.agents) { agent in
                 let answerable = client.canAnswer(agent)
-                TVAgentCard(row: agent.row, answerable: answerable) {
-                  if answerable { answering = agent } else { client.open(agent) }
+                let decidable = client.canDecide(agent)
+                TVAgentCard(row: agent.row, answerable: answerable, decidable: decidable) {
+                  if answerable {
+                    answering = agent
+                  } else if decidable {
+                    deciding = agent
+                  } else {
+                    client.open(agent)
+                  }
                 }
                 .focused($focused, equals: agent.id)
               }
@@ -54,6 +63,16 @@ struct TVAgentsScreen: View {
       if old == nil, first != nil { focused = first }
     }
     .fullScreenCover(item: $answering) { agent in TVAnswer(client: client, agent: agent) }
+    .confirmationDialog(
+      "\(deciding?.row.appLabel ?? "The agent") asks permission",
+      isPresented: Binding(get: { deciding != nil }, set: { if !$0 { deciding = nil } }), presenting: deciding
+    ) { agent in
+      Button("Allow") { client.decide(agent, .allow) }
+      Button("Deny", role: .destructive) { client.decide(agent, .deny) }
+      Button("Open in Rex Instead") { client.open(agent) }
+    } message: { agent in
+      Text(agent.row.permission?.prompt ?? "")
+    }
     // For simulators: `SIMCTL_CHILD_REXRADAR_SHOW_ANSWER=1` opens the first answerable agent's questions.
     .task(id: client.agents.filter(client.canAnswer).map(\.id)) {
       guard ProcessInfo.processInfo.environment["REXRADAR_SHOW_ANSWER"] == "1", answering == nil else { return }
@@ -90,6 +109,8 @@ struct TVAgentCard: View {
   let row: Row
   /// Its questions can be answered from here: Select shows them instead of opening it.
   var answerable = false
+  /// Its permission can be allowed or denied from here: Select asks which.
+  var decidable = false
   let select: () -> Void
 
   var body: some View {
@@ -108,12 +129,17 @@ struct TVAgentCard: View {
         if let topic = row.topic {
           Label(topic, systemImage: "bubble.left").font(.callout).lineLimit(1)
         }
-        if let msg = row.pane.msg, !msg.isEmpty {
+        if let permission = row.permission {
+          PermissionPrompt(permission: permission, lineLimit: decidable ? 3 : 4)
+        } else if let msg = row.pane.msg, !msg.isEmpty {
           Text(msg).font(.callout).foregroundStyle(.secondary).lineLimit(answerable ? 1 : 2)
         }
         Spacer(minLength: 0)
         if answerable, let n = row.questions?.questions.count {
           Label("Answer \(n) question\(n == 1 ? "" : "s")", systemImage: "questionmark.bubble.fill")
+            .font(.callout.weight(.semibold)).foregroundStyle(.tint)
+        } else if decidable {
+          Label("Allow or deny", systemImage: "hand.raised.fill")
             .font(.callout.weight(.semibold)).foregroundStyle(.tint)
         }
       }

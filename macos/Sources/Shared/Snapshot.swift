@@ -34,6 +34,8 @@ struct Pane: Codable, Identifiable, Hashable {
   var state: String
   var kind: String?
   var msg: String?
+  /// When Rex last changed the pane's status, as the watcher wrote it.
+  var updatedAt: String?
 
   var id: String { blockId }
 }
@@ -78,6 +80,8 @@ struct Row: Codable, Identifiable, Hashable {
   var stale: Bool
   /// The question list Claude is asking here, when it is (from the questions hook).
   var questions: PendingQuestions?
+  /// The permission it waits on, when it's one Rex Radar can allow or deny.
+  var permission: PendingPermission?
 
   var id: String { source + "/" + pane.blockId }
   var state: AgentState { AgentState(pane.state) }

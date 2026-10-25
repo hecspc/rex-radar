@@ -7,6 +7,8 @@ import Network
 ///   GET  /v1/agents          → { host, sources, rows, written_at }
 ///   POST /v1/answer?id=<row> → answers its question list (body: [QuestionAnswer]); only when
 ///                              Settings allows it, refused otherwise
+///   POST /v1/permission?id=<row> → allows or denies the permission it asks for (body:
+///                              PermissionReply); only when Settings allows it
 ///   GET  /v1/skills?id=<row> → the skills Claude offers in that pane ([Skill])
 ///   POST /v1/skill?id=<row>  → types one into it (body: SkillRequest); both only when Settings
 ///                              allows it
@@ -116,7 +118,8 @@ final class HubServer: ObservableObject {
       store.reload()
       let body = AgentsResponse(
         host: hostName, sources: store.sources, rows: store.rows, writtenAt: Date(),
-        answering: Preferences.shared.allowPhoneAnswers, skills: Preferences.shared.allowPhoneSkills)
+        answering: Preferences.shared.allowPhoneAnswers, skills: Preferences.shared.allowPhoneSkills,
+        permissions: Preferences.shared.allowPhonePermissions)
       send(connection, 200, body)
     case ("POST", "/v1/open"):
       let id = target?.queryItems?.first { $0.name == "id" }?.value
@@ -149,6 +152,26 @@ final class HubServer: ObservableObject {
       Task {
         do {
           try await store.answer(row, answers)
+          send(connection, 200, ["ok": "true"])
+        } catch {
+          send(connection, 409, ["error": error.localizedDescription])
+        }
+      }
+    case ("POST", "/v1/permission"):
+      guard Preferences.shared.allowPhonePermissions else {
+        return send(connection, 403, ["error": "Permissions from iPhone & iPad are off in Rex Radar's Settings on this Mac."])
+      }
+      let id = target?.queryItems?.first { $0.name == "id" }?.value
+      store.reload()
+      guard let row = store.rows.first(where: { $0.id == id }) else {
+        return send(connection, 404, ["error": "no such agent"])
+      }
+      guard let reply = try? JSONDecoder().decode(PermissionReply.self, from: body) else {
+        return send(connection, 400, ["error": "bad reply"])
+      }
+      Task {
+        do {
+          try await store.decide(row, reply.decision, prompt: reply.prompt)
           send(connection, 200, ["ok": "true"])
         } catch {
           send(connection, 409, ["error": error.localizedDescription])

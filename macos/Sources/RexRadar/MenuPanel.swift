@@ -30,7 +30,7 @@ struct MenuPanel: View {
         } else if let hero = store.rows.first {
           HeroCard(
             row: hero, open: { open(hero) }, answer: hero.questions == nil ? nil : { store.startAnswering(hero) },
-            skill: hero.takesSkills ? { store.picking = hero } : nil)
+            skill: hero.takesSkills ? { store.picking = hero } : nil, decide: { store.decide(hero, $0) })
           let rest = Array(store.rows.dropFirst())
           if !rest.isEmpty { others(rest) }
         } else {
@@ -73,7 +73,9 @@ struct MenuPanel: View {
           VStack(alignment: .leading, spacing: 4) {
             Text(source.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary).tracking(1)
             ForEach(rows) { row in
-              AgentRow(row: row, open: { open(row) }, skill: row.takesSkills ? { store.picking = row } : nil)
+              AgentRow(
+                row: row, open: { open(row) }, skill: row.takesSkills ? { store.picking = row } : nil,
+                decide: { store.decide(row, $0) })
             }
           }
         }

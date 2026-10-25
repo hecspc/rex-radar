@@ -10,6 +10,8 @@ struct AgentsResponse: Codable {
   var answering: Bool? = nil
   /// Whether this Mac lets phones send skills to Claude (Settings, off by default).
   var skills: Bool? = nil
+  /// Whether this Mac lets phones allow or deny agents' permissions (Settings, off by default).
+  var permissions: Bool? = nil
 }
 
 /// POST /v1/pair: a device without a camera (Apple TV) asks to pair; someone allows it on the Mac.

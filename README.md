@@ -36,7 +36,8 @@ Claude's questions and send it skills, from wherever you are.
 ## Requirements
 
 - Rex (beta) on a Mac running macOS 26, with **Remote Control** on in the Rex app's settings.
-- Claude Code 2.1.310 or later, which reports its status to Rex. Other agents show up if they report
+- Claude Code 2.1.310 or later, which reports its status to Rex. Codex (Rex detects its status itself) and
+  Antigravity (`agy`, reports its own) show up too. Other agents show up if they report
   [program status](https://www.superlogical.com/rex/docs/build/program-status).
 - To build: Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
   For the widgets, the iOS app and the watch app, an Apple Development team (a free Personal Team works for your
@@ -142,6 +143,19 @@ The server describes its own API (`rex api list`, `rex api describe <method>`):
 runs, `done` with a summary in `msg` ("replied 'pong' as requested"). 2.1.283 reported nothing. Not yet verified:
 `blocked` on a permission or question prompt.
 
+**Rex detects Codex's status itself**, through the `rex __internal session-start --agent codex` SessionStart hook
+Rex adds to `~/.codex/hooks.json`. Codex asks to trust new hooks at startup; untrusted, the pane reports nothing.
+Verified 2026-10-25 with codex-cli 0.164.0: `idle` at start, `working`, `blocked` with `kind=permission` on a
+command approval, then `done`, all with `app=codex` and never a `msg`. Codex's terminal title is
+`<spinner> <topic> | <project>`, with `[ ! ] Action Required | ` in front while blocked; the topic strips both.
+
+**Antigravity (`agy`) reports its own status**, with no Rex hook. Verified 2026-10-25 with agy 1.4.7: `idle` at
+start, `working`, `blocked` with `kind=permission` and the command in `msg` ("Approve RunCommand: curl …"), then
+`done` with the reply in `msg`, all with `app=antigravity`. It sets no terminal title, so the card shows `msg`.
+Gemini CLI is deprecated in favour of it and was not tested.
+
+Answering and skills stay Claude Code only.
+
 ### Opening a tab in the right app
 
 Rex apps are clients of a server. A Mac app connected to a remote host is also a client *of that host*. To open
@@ -222,7 +236,7 @@ iPhone, with the same glass cards. It talks to the Mac app, which is the hub (th
 phone open agents in the Mac's Rex.
 
 - **Hub** (in the Mac app): HTTP on port 7298, `GET /v1/agents`, `POST /v1/open?id=…`, `POST /v1/answer?id=…`,
-  `GET /v1/skills?id=…` and `POST /v1/skill?id=…`, every request with
+  `POST /v1/permission?id=…`, `GET /v1/skills?id=…` and `POST /v1/skill?id=…`, every request with
   `Authorization: Bearer <token>`; advertised over Bonjour as `_rexradar._tcp`.
 - **Pairing**: the Mac window's **Devices** page shows a QR code per address (Tailscale first). Scan it with
   the Camera app: the `rexradar://pair?host=…&token=…` link opens the app and pairs it. The token goes to the
@@ -318,6 +332,25 @@ on (off by default): `POST /v1/answer?id=…` answers `403` otherwise.
 question). Register it in `~/.claude/settings.json`: `ask` on PreToolUse with matcher `AskUserQuestion`, `done` on
 PostToolUse and PostToolUseFailure (same matcher), Stop and UserPromptSubmit (a cancelled list runs no post-tool
 hook).
+
+### Allowing permissions
+
+When Claude Code, Codex or Antigravity waits on a permission (Rex: `blocked`, `kind=permission`), the card shows
+what it asks, with **Allow** and **Deny** (Mac panel and window, iPhone, iPad, Apple Watch, and Select on Apple
+TV). Allow presses `1`, the first option ("Yes", this once); Deny presses Esc. Verified 2026-10-25 on Claude Code
+2.1.310, Codex 0.164.0 and Antigravity 1.4.7: all three put "1. Yes…" first and cancel on Esc, which leaves the
+agent idle.
+
+- What it asks is Rex's `msg` (Claude Code: "approve Bash: …", Antigravity: "Approve RunCommand: …"). Codex sends
+  no `msg`, so the Mac reads the prompt off the screen, once per status update: the lines above "1. Yes", up to
+  its "• Running …" line, rejoined where a narrow pane wrapped them.
+- Before pressing a key, Rex must still report a permission, the screen must show "1. Yes", and the prompt must
+  equal the one the device showed (the phone sends it back in `PermissionReply`). Afterwards the prompt must be
+  gone, else it says so.
+- Phones can do it only when **Settings → Let iPhone & iPad allow or deny permissions** is on (off by default):
+  `POST /v1/permission?id=…` answers `403` otherwise. Unlike questions, it works for remote servers too: no hook
+  file is needed.
+- Test without clicking: `RexRadar --decide <block id> allow|deny`.
 
 ### Sending skills
 

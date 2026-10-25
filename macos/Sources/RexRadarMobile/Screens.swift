@@ -100,7 +100,8 @@ struct AgentList: View {
               HeroCard(
                 row: agent.row, open: { client.open(agent) },
                 answer: client.canAnswer(agent) ? { answering = agent } : nil,
-                skill: client.canSendSkill(agent) ? { picking = agent } : nil, fillHeight: true)
+                skill: client.canSendSkill(agent) ? { picking = agent } : nil,
+                decide: client.canDecide(agent) ? { client.decide(agent, $0) } : nil, fillHeight: true)
             }
           }
         }

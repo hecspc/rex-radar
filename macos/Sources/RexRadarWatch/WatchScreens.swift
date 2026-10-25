@@ -26,7 +26,7 @@ struct AgentCell: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(agent.row.pane.session ?? "Session").font(.headline).lineLimit(1)
         Text(agent.row.stateLabel).font(.caption2).foregroundStyle(agent.row.state.color)
-        if let detail = agent.row.pane.msg ?? agent.row.topic {
+        if let detail = agent.row.permission?.prompt ?? agent.row.pane.msg ?? agent.row.topic {
           Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
         }
       }
@@ -47,7 +47,16 @@ struct AgentDetail: View {
         Text(agent.row.pane.session ?? "Session").font(.title3.weight(.semibold))
         Text("\(agent.row.tabLabel) · \(agent.serverLabel)").font(.caption2).foregroundStyle(.secondary)
         if let topic = agent.row.topic { Text(topic).font(.footnote) }
-        if let msg = agent.row.pane.msg { Text(msg).font(.footnote).foregroundStyle(.secondary) }
+        if let permission = agent.row.permission {
+          Text(permission.prompt).font(.footnote.monospaced()).foregroundStyle(.secondary)
+        } else if let msg = agent.row.pane.msg {
+          Text(msg).font(.footnote).foregroundStyle(.secondary)
+        }
+        if client.canDecide(agent) {
+          Button { client.decide(agent, .allow) } label: { Label("Allow", systemImage: "checkmark") }
+            .tint(.green)
+          Button(role: .destructive) { client.decide(agent, .deny) } label: { Label("Deny", systemImage: "xmark") }
+        }
         if client.canAnswer(agent), let n = agent.row.questions?.questions.count {
           NavigationLink {
             WatchAnswer(client: client, agent: agent)

@@ -55,6 +55,8 @@ struct HeroCard: View {
   var answer: (() -> Void)? = nil
   /// Set when a skill can be sent to it from here: shows a Skill button beside Open.
   var skill: (() -> Void)? = nil
+  /// Set when its permission can be allowed or denied from here: shows Allow and Deny.
+  var decide: ((PermissionDecision) -> Void)? = nil
   /// In a grid: as tall as the row, with the buttons along the bottom.
   var fillHeight = false
 
@@ -74,10 +76,23 @@ struct HeroCard: View {
         if let topic = row.topic {
           Label(topic, systemImage: "bubble.left").font(.callout).lineLimit(1)
         }
-        if let msg = row.pane.msg, !msg.isEmpty {
+        if let permission = row.permission {
+          PermissionPrompt(permission: permission)
+        } else if let msg = row.pane.msg, !msg.isEmpty {
           Text(msg).font(.callout).foregroundStyle(.secondary).lineLimit(3).fixedSize(horizontal: false, vertical: true)
         }
         if fillHeight { Spacer(minLength: 0) }
+        if let decide, row.permission != nil {
+          HStack {
+            Button { decide(.allow) } label: { Label("Allow", systemImage: "checkmark").frame(maxWidth: .infinity) }
+              .glassProminentButtonStyle()
+              .help("Yes, this once: presses 1 in the pane")
+            Button { decide(.deny) } label: { Label("Deny", systemImage: "xmark").frame(maxWidth: .infinity) }
+              .glassButtonStyle()
+              .help("No: presses Esc in the pane")
+          }
+          .controlSize(.large)
+        }
         if let answer, let n = row.questions?.questions.count {
           Button(action: answer) {
             Label("Answer \(n) question\(n == 1 ? "" : "s")", systemImage: "questionmark.bubble").frame(maxWidth: .infinity)
@@ -102,12 +117,30 @@ struct HeroCard: View {
   }
 }
 
+/// What a blocked agent asks permission for, as a quoted block: often a command.
+struct PermissionPrompt: View {
+  let permission: PendingPermission
+  var lineLimit = 6
+
+  var body: some View {
+    Text(permission.prompt)
+      .font(.callout.monospaced())
+      .lineLimit(lineLimit)
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(10)
+      .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+  }
+}
+
 /// One agent as a compact row; the whole row opens it.
 struct AgentRow: View {
   let row: Row
   let open: () -> Void
   /// Set when a skill can be sent to it from here: in the row's context menu.
   var skill: (() -> Void)? = nil
+  /// Set when its permission can be allowed or denied from here: in the context menu too.
+  var decide: ((PermissionDecision) -> Void)? = nil
 
   var body: some View {
     Button(action: open) {
@@ -123,7 +156,7 @@ struct AgentRow: View {
             Spacer(minLength: 4)
             Text(row.stale ? "stale" : row.stateLabel).font(.caption).foregroundStyle(row.state.color)
           }
-          if let detail = row.pane.msg.flatMap({ $0.isEmpty ? nil : $0 }) ?? row.topic {
+          if let detail = row.permission?.prompt ?? row.pane.msg.flatMap({ $0.isEmpty ? nil : $0 }) ?? row.topic {
             Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
           }
         }
@@ -135,6 +168,10 @@ struct AgentRow: View {
     .contextMenu {
       Button("Open in Rex", systemImage: "arrow.up.forward.app", action: open)
       if let skill { Button("Send Skill…", systemImage: "wand.and.stars", action: skill) }
+      if let decide, row.permission != nil {
+        Button("Allow", systemImage: "checkmark") { decide(.allow) }
+        Button("Deny", systemImage: "xmark") { decide(.deny) }
+      }
     }
     .opacity(row.stale ? 0.5 : 1)
   }

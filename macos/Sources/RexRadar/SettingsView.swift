@@ -40,6 +40,11 @@ final class Preferences: ObservableObject {
     didSet { UserDefaults.standard.set(allowPhoneSkills, forKey: "allowPhoneSkills") }
   }
 
+  /// Off by default as well: allowing runs whatever the agent asked to run.
+  @Published var allowPhonePermissions: Bool {
+    didSet { UserDefaults.standard.set(allowPhonePermissions, forKey: "allowPhonePermissions") }
+  }
+
   @Published var presence: AppPresence {
     didSet {
       UserDefaults.standard.set(presence.rawValue, forKey: "presence")
@@ -53,6 +58,7 @@ final class Preferences: ObservableObject {
     presence = UserDefaults.standard.string(forKey: "presence").flatMap(AppPresence.init) ?? .dockAndMenuBar
     allowPhoneAnswers = UserDefaults.standard.bool(forKey: "allowPhoneAnswers")
     allowPhoneSkills = UserDefaults.standard.bool(forKey: "allowPhoneSkills")
+    allowPhonePermissions = UserDefaults.standard.bool(forKey: "allowPhonePermissions")
     clientLabel = UserDefaults.standard.string(forKey: "clientLabel") ?? Host.current().localizedName ?? ""
   }
 
@@ -114,6 +120,16 @@ struct SettingsView: View {
         Text(
           "Answering types into the Claude pane in Rex. Rex Radar only types for a pane that's showing a question "
             + "list, only option numbers, Tab and one short line, and checks Claude's review before submitting.")
+      }
+
+      Section {
+        Toggle("Let iPhone & iPad allow or deny permissions", isOn: $prefs.allowPhonePermissions)
+      } header: {
+        Text("Permissions")
+      } footer: {
+        Text(
+          "Allowing presses 1 (Yes, this once) and denying presses Esc in the agent's pane in Rex, for Claude Code, "
+            + "Codex and Antigravity. Rex Radar only presses them while the agent still asks what the phone showed.")
       }
 
       Section {

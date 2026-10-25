@@ -42,6 +42,47 @@ final class Store: ObservableObject {
     reload()
   }
 
+  /// Allows or denies the permission the row's agent asks for (see Rex.decide). Throws on refusal.
+  func decide(_ row: Row, _ decision: PermissionDecision, prompt: String) async throws {
+    guard row.permission != nil else { throw PermissionError.notWaiting }
+    try await Task.detached { try Rex.decide(row, decision, prompt: prompt) }.value
+    reload()
+  }
+
+  /// The same from a button here: a refusal shows under the list, like a failed open.
+  func decide(_ row: Row, _ decision: PermissionDecision) {
+    guard let prompt = row.permission?.prompt else { return }
+    openError = nil
+    Task {
+      do { try await decide(row, decision, prompt: prompt) } catch { openError = error.localizedDescription }
+    }
+  }
+
+  /// Permission prompts read off the screen, by pane and status update, for agents that send no
+  /// message (Codex): a pane's screen is read once per request, off the main thread.
+  private var screenPrompts: [String: String] = [:]
+  private var readingPrompts: Set<String> = []
+
+  private func permission(for row: Row) -> PendingPermission? {
+    let pane = row.pane
+    guard pane.state == "blocked", pane.kind == "permission", let app = pane.app, PendingPermission.apps.contains(app)
+    else { return nil }
+    if let msg = pane.msg, !msg.isEmpty { return PendingPermission(prompt: msg) }
+    let key = row.id + "@" + (pane.updatedAt ?? "")
+    if let prompt = screenPrompts[key] { return prompt.isEmpty ? nil : PendingPermission(prompt: prompt) }
+    if readingPrompts.insert(key).inserted {
+      Task.detached { [weak self] in
+        let prompt = (try? Rex.screen(row)).flatMap(PendingPermission.prompt(fromScreen:)) ?? ""
+        await MainActor.run {
+          self?.readingPrompts.remove(key)
+          self?.screenPrompts[key] = prompt
+          self?.reload()
+        }
+      }
+    }
+    return nil
+  }
+
   let directory: URL = {
     if let dir = ProcessInfo.processInfo.environment["REX_RADAR_DIR"] { return URL(fileURLWithPath: dir) }
     return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/state/rex-radar")
@@ -126,7 +167,9 @@ final class Store: ObservableObject {
         let stale = Date().timeIntervalSince(s.writtenAt) > 2 * s.heartbeatSeconds
         sources.append(s.source)
         rows += s.panes.map {
-          Row(pane: $0, source: s.source, server: s.server, stale: stale, questions: questions(for: $0, server: s.server))
+          var row = Row(pane: $0, source: s.source, server: s.server, stale: stale, questions: questions(for: $0, server: s.server))
+          row.permission = stale ? nil : permission(for: row)
+          return row
         }
       } catch {
         errors.append("\(file.lastPathComponent): \(error.localizedDescription)")
@@ -139,6 +182,8 @@ final class Store: ObservableObject {
       if a.pane.session != b.pane.session { return (a.pane.session ?? "") < (b.pane.session ?? "") }
       return (a.pane.tabIndex ?? 0) < (b.pane.tabIndex ?? 0)
     }
+    let live = Set(rows.map { $0.id + "@" + ($0.pane.updatedAt ?? "") })
+    screenPrompts = screenPrompts.filter { live.contains($0.key) }
     self.sources = sources.sorted()
     self.lastError = errors.first
     // Hand the rows to the widget, and wake it only when they changed.

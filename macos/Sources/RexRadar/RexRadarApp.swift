@@ -12,8 +12,8 @@ struct RexRadarApp: App {
     if let dir = Render.directory {
       Task { @MainActor in await Render.run(store: Store(), into: dir) }
     }
-    if let (block, json) = AnswerCommand.arguments {
-      DispatchQueue.main.async { AnswerCommand.run(block, json) }
+    if let (flag, block, value) = AnswerCommand.arguments {
+      DispatchQueue.main.async { AnswerCommand.run(flag, block, value) }
     }
   }
 

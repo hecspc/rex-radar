@@ -93,7 +93,7 @@ struct MainWindow: View {
             ForEach(rows) { row in
               HeroCard(
                 row: row, open: { store.open(row) }, answer: row.questions == nil ? nil : { store.startAnswering(row) },
-                skill: row.takesSkills ? { store.picking = row } : nil, fillHeight: true)
+                skill: row.takesSkills ? { store.picking = row } : nil, decide: { store.decide(row, $0) }, fillHeight: true)
             }
           }
           .padding(20)
