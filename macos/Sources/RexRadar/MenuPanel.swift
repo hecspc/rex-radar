@@ -5,6 +5,7 @@ struct MenuPanel: View {
   @ObservedObject var store: Store
   @Environment(\.openWindow) private var openWindow
   @Environment(\.openSettings) private var openSettings
+  @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     GlassEffectContainer(spacing: 12) {
@@ -18,7 +19,7 @@ struct MenuPanel: View {
             }
           }
         } else if let hero = store.rows.first {
-          HeroCard(row: hero, open: { store.open(hero) }, answer: hero.questions == nil ? nil : { store.startAnswering(hero) })
+          HeroCard(row: hero, open: { open(hero) }, answer: hero.questions == nil ? nil : { store.startAnswering(hero) })
           let rest = Array(store.rows.dropFirst())
           if !rest.isEmpty { others(rest) }
         } else {
@@ -60,7 +61,7 @@ struct MenuPanel: View {
         GlassCard {
           VStack(alignment: .leading, spacing: 4) {
             Text(source.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary).tracking(1)
-            ForEach(rows) { row in AgentRow(row: row) { store.open(row) } }
+            ForEach(rows) { row in AgentRow(row: row) { open(row) } }
           }
         }
       }
@@ -101,6 +102,12 @@ struct MenuPanel: View {
   }
 
   private var summaryColor: Color { store.topState?.color ?? .secondary }
+
+  /// Closes the panel too: the pane comes up in Rex, and the panel would sit over it.
+  private func open(_ row: Row) {
+    store.open(row)
+    dismiss()
+  }
 
   private func showWindow() {
     openWindow(id: "main")
