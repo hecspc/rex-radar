@@ -196,7 +196,7 @@ macos/bundle.sh --install                                     # app only, comman
 ```
 
 - **Menu bar**: the app icon's dino and radar as a one-ink template glyph (`MenuIcon.swift`); a blip and a count
-  when agents want you.
+  when agents can't go on without you (blocked or error; done agents aren't counted).
 - **Panel** (Liquid Glass): the most urgent agent as a card with **Open in Rex** and **Skill**, the others in a card
   per server (right-click one for **Send Skill…**). Opening a pane closes the panel.
 - **Window**: a server sidebar and a card per agent.

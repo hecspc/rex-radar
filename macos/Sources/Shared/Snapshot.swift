@@ -65,8 +65,9 @@ enum AgentState: Int, Comparable, Codable {
     }
   }
 
-  /// Wants you: the menu bar counts these.
-  var needsAttention: Bool { self == .blocked || self == .error || self == .done }
+  /// Can't go on without you (a question, a permission, a login, an error): the menu bar, badges
+  /// and complications count these. Done agents are listed, but not counted.
+  var needsAttention: Bool { self == .blocked || self == .error }
 }
 
 /// A pane as shown: its snapshot's source and server, and whether that watcher went quiet.
