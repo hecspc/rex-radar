@@ -110,10 +110,12 @@ struct AgentList: View {
     .refreshable { await client.refresh() }
     .sheet(item: $answering) { agent in AnswerSheet(client: client, agent: agent) }
     .sheet(item: $picking) { agent in SkillSheet(client: client, agent: agent) }
-    // For simulators: `SIMCTL_CHILD_REXRADAR_SHOW_ANSWER=1` opens the first answerable form.
+    // For simulators: `SIMCTL_CHILD_REXRADAR_SHOW_ANSWER=1` opens the first answerable form, and
+    // `SIMCTL_CHILD_REXRADAR_SHOW_SKILLS=1` the skill picker of the first agent that takes skills.
     .task(id: agents.map(\.id)) {
-      guard ProcessInfo.processInfo.environment["REXRADAR_SHOW_ANSWER"] == "1", answering == nil else { return }
-      answering = agents.first(where: client.canAnswer)
+      let env = ProcessInfo.processInfo.environment
+      if env["REXRADAR_SHOW_ANSWER"] == "1", answering == nil { answering = agents.first(where: client.canAnswer) }
+      if env["REXRADAR_SHOW_SKILLS"] == "1", picking == nil { picking = agents.first(where: client.canSendSkill) }
     }
     .navigationTitle(title)
     .toolbarTitleDisplayMode(.inline)

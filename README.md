@@ -8,6 +8,15 @@ Claude's questions and send it skills, from wherever you are.
 > A community project, not affiliated with Superlogical. Rex is in beta and its API changes weekly, so things
 > can break with a Rex update; what's been verified, and on which builds, is noted below.
 
+<p align="center">
+  <img src="docs/screenshots/ipad.png" alt="Rex Radar on iPad: a sidebar of Rex servers beside agent cards" width="720">
+</p>
+<p align="center">
+  <img src="docs/screenshots/iphone-agents.png" alt="Agents on iPhone, most urgent first" width="240">
+  <img src="docs/screenshots/iphone-answer.png" alt="Answering Claude's question list from the iPhone" width="240">
+  <img src="docs/screenshots/iphone-skills.png" alt="Picking a skill to send to Claude" width="240">
+</p>
+
 ## Features
 
 - **Every agent at a glance**, most urgent first: blocked, error, done, working, idle; with Claude's one-line
