@@ -7,6 +7,9 @@ import Network
 ///   GET  /v1/agents          → { host, sources, rows, written_at }
 ///   POST /v1/answer?id=<row> → answers its question list (body: [QuestionAnswer]); only when
 ///                              Settings allows it, refused otherwise
+///   GET  /v1/skills?id=<row> → the skills Claude offers in that pane ([Skill])
+///   POST /v1/skill?id=<row>  → types one into it (body: SkillRequest); both only when Settings
+///                              allows it
 ///   POST /v1/open?id=<row>   → shows that pane in Rex here (body: the row, for agents another Mac
 ///                              watches on a server this Mac reaches by address)
 ///
@@ -107,7 +110,7 @@ final class HubServer: ObservableObject {
       store.reload()
       let body = AgentsResponse(
         host: hostName, sources: store.sources, rows: store.rows, writtenAt: Date(),
-        answering: Preferences.shared.allowPhoneAnswers)
+        answering: Preferences.shared.allowPhoneAnswers, skills: Preferences.shared.allowPhoneSkills)
       send(connection, 200, body)
     case ("POST", "/v1/open"):
       let id = target?.queryItems?.first { $0.name == "id" }?.value
@@ -140,6 +143,34 @@ final class HubServer: ObservableObject {
       Task {
         do {
           try await store.answer(row, answers)
+          send(connection, 200, ["ok": "true"])
+        } catch {
+          send(connection, 409, ["error": error.localizedDescription])
+        }
+      }
+    case ("GET", "/v1/skills"), ("POST", "/v1/skill"):
+      guard Preferences.shared.allowPhoneSkills else {
+        return send(connection, 403, ["error": "Sending skills from iPhone & iPad is off in Rex Radar's Settings on this Mac."])
+      }
+      let id = target?.queryItems?.first { $0.name == "id" }?.value
+      store.reload()
+      guard let row = store.rows.first(where: { $0.id == id }) else {
+        return send(connection, 404, ["error": "no such agent"])
+      }
+      if method == "GET" {
+        Task {
+          do { send(connection, 200, try await store.skills(for: row)) } catch {
+            send(connection, 409, ["error": error.localizedDescription])
+          }
+        }
+        return
+      }
+      guard let request = try? JSONDecoder().decode(SkillRequest.self, from: body) else {
+        return send(connection, 400, ["error": "bad skill"])
+      }
+      Task {
+        do {
+          try await store.sendSkill(row, request)
           send(connection, 200, ["ok": "true"])
         } catch {
           send(connection, 409, ["error": error.localizedDescription])

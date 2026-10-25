@@ -9,7 +9,7 @@ struct RexRadarApp: App {
 
   init() {
     if let dir = Render.directory {
-      DispatchQueue.main.async { Render.run(store: Store(), into: dir) }
+      Task { @MainActor in await Render.run(store: Store(), into: dir) }
     }
     if let (block, json) = AnswerCommand.arguments {
       DispatchQueue.main.async { AnswerCommand.run(block, json) }

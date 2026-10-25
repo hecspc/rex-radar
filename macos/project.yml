@@ -108,6 +108,7 @@ targets:
       - path: Sources/Shared
         excludes:
           - QuestionsForm.swift
+          - SkillPicker.swift
       - path: Resources/Assets.xcassets
     settings:
       base:
@@ -129,6 +130,7 @@ targets:
       - path: Sources/Shared
         excludes:
           - QuestionsForm.swift
+          - SkillPicker.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: house.milapan.rex-radar.ios.watchkitapp.widget

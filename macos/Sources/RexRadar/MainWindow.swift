@@ -48,6 +48,19 @@ struct MainWindow: View {
         .frame(width: 520, height: 560)
       }
     }
+    .sheet(isPresented: Binding(get: { store.picking != nil }, set: { if !$0 { store.picking = nil } })) {
+      if let row = store.picking {
+        VStack(alignment: .leading, spacing: 12) {
+          Text(row.pane.session ?? "Session").font(.title2.weight(.bold))
+          Text(row.tabLabel).foregroundStyle(.secondary)
+          SkillPicker(
+            load: { try await store.skills(for: row) }, send: { try await store.sendSkill(row, $0) },
+            cancel: { store.picking = nil })
+        }
+        .padding(24)
+        .frame(width: 520, height: 600)
+      }
+    }
   }
 
   private var rows: [Row] {
@@ -69,7 +82,9 @@ struct MainWindow: View {
         GlassEffectContainer(spacing: 16) {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16)], spacing: 16) {
             ForEach(rows) { row in
-              HeroCard(row: row, open: { store.open(row) }, answer: row.questions == nil ? nil : { store.startAnswering(row) })
+              HeroCard(
+                row: row, open: { store.open(row) }, answer: row.questions == nil ? nil : { store.startAnswering(row) },
+                skill: row.takesSkills ? { store.picking = row } : nil)
             }
           }
           .padding(20)

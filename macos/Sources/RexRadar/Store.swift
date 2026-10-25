@@ -22,6 +22,26 @@ final class Store: ObservableObject {
 
   func stopAnswering() { answering = nil }
 
+  /// The pane the skill picker is open for, in the panel or window.
+  @Published var picking: Row?
+
+  /// The skills Claude offers in the pane: read from this Mac's disk for its working directory.
+  func skills(for row: Row) async throws -> [Skill] {
+    guard row.pane.app == "claude-code", row.server == nil else { throw SkillError.notClaude }
+    return try await Task.detached { SkillCatalog.skills(cwd: try Rex.workingDirectory(row)) }.value
+  }
+
+  /// Types the skill into the pane, if Claude offers it there. Throws on refusal.
+  func sendSkill(_ row: Row, _ request: SkillRequest) async throws {
+    try request.validate()
+    guard try await skills(for: row).contains(where: { $0.name == request.name }) else {
+      throw SkillError.unknown(request.name)
+    }
+    try await Task.detached { try Rex.sendSkill(row, request) }.value
+    if picking?.id == row.id { picking = nil }
+    reload()
+  }
+
   let directory: URL = {
     if let dir = ProcessInfo.processInfo.environment["REX_RADAR_DIR"] { return URL(fileURLWithPath: dir) }
     return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/state/rex-radar")

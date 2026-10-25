@@ -30,6 +30,8 @@ final class HubClient {
   private(set) var agentsByHub: [UUID: [Row]] = [:]
   /// Per Mac: whether it lets this device answer Claude's questions (its Settings).
   private(set) var answeringByHub: [UUID: Bool] = [:]
+  /// Per Mac: whether it lets this device send skills to Claude (its Settings).
+  private(set) var skillsByHub: [UUID: Bool] = [:]
   private(set) var errors: [UUID: String] = [:]
   private(set) var updated: Date?
   /// Shown briefly after a tap: "Opened on vv-macbook".
@@ -148,6 +150,7 @@ final class HubClient {
         case .success(let response):
           agentsByHub[id] = response.rows
           answeringByHub[id] = response.answering ?? false
+          skillsByHub[id] = response.skills ?? false
           errors[id] = nil
         case .failure(let error):
           errors[id] = error.localizedDescription
@@ -223,6 +226,40 @@ final class HubClient {
     await refresh()
     try? await Task.sleep(for: .seconds(2.5))
     notice = nil
+  }
+
+  // MARK: Skills
+
+  /// Whether a skill can be sent to this agent from here: Claude on its Mac's own Rex, and that
+  /// Mac allows it.
+  func canSendSkill(_ agent: Agent) -> Bool { agent.row.takesSkills && (skillsByHub[agent.hubID] ?? false) }
+
+  /// The skills Claude offers in the agent's pane, as its Mac reads them.
+  func skills(_ agent: Agent) async throws -> [Skill] {
+    let (url, token) = try endpoint("v1/skills", agent)
+    return try JSONDecoder().decode([Skill].self, from: try await Self.request(url, method: "GET", token: token, body: nil))
+  }
+
+  /// Asks the agent's Mac to type the skill into its pane.
+  func sendSkill(_ agent: Agent, _ request: SkillRequest) async throws {
+    let (url, token) = try endpoint("v1/skill", agent)
+    _ = try await Self.request(url, method: "POST", token: token, body: try JSONEncoder().encode(request))
+    notice = "Sent /\(request.name) on \(agent.hubName)"
+    Task {
+      await refresh()
+      try? await Task.sleep(for: .seconds(2.5))
+      notice = nil
+    }
+  }
+
+  /// `<path>?id=<row>` on the Mac that reported the agent, and its token.
+  private func endpoint(_ path: String, _ agent: Agent) throws -> (URL, String?) {
+    guard let hub = hubs.first(where: { $0.id == agent.hubID }), let base = hub.base,
+      var c = URLComponents(url: base.appending(path: path), resolvingAgainstBaseURL: false)
+    else { throw HubError.notFound }
+    c.queryItems = [URLQueryItem(name: "id", value: agent.row.id)]
+    guard let url = c.url else { throw HubError.notFound }
+    return (url, Keychain.read(for: hub.id))
   }
 
   // MARK: Opening

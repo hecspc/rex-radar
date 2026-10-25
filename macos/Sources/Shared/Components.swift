@@ -51,6 +51,8 @@ struct HeroCard: View {
   let open: () -> Void
   /// Set when the questions can be answered from here: shows "Answer N questions".
   var answer: (() -> Void)? = nil
+  /// Set when a skill can be sent to it from here: shows a Skill button beside Open.
+  var skill: (() -> Void)? = nil
 
   var body: some View {
     GlassCard(padding: 16) {
@@ -78,8 +80,14 @@ struct HeroCard: View {
           .glassProminentButtonStyle()
           .controlSize(.large)
         }
-        Button(action: open) {
-          Label("Open in Rex", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity)
+        HStack {
+          Button(action: open) {
+            Label("Open in Rex", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity)
+          }
+          if let skill {
+            Button(action: skill) { Label("Skill", systemImage: "wand.and.stars") }
+              .help("Send a skill to Claude")
+          }
         }
         .glassButtonStyle()
         .controlSize(.large)
@@ -93,6 +101,8 @@ struct HeroCard: View {
 struct AgentRow: View {
   let row: Row
   let open: () -> Void
+  /// Set when a skill can be sent to it from here: in the row's context menu.
+  var skill: (() -> Void)? = nil
 
   var body: some View {
     Button(action: open) {
@@ -117,6 +127,10 @@ struct AgentRow: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
+    .contextMenu {
+      Button("Open in Rex", systemImage: "arrow.up.forward.app", action: open)
+      if let skill { Button("Send Skill…", systemImage: "wand.and.stars", action: skill) }
+    }
     .opacity(row.stale ? 0.5 : 1)
   }
 }

@@ -27,12 +27,16 @@ Data flows one way: Rex server → Lua watcher → JSON snapshots → Mac app �
 1. **Watcher** (`watcher/rex-radar.lua`). One `rex [-S <server>] do … --all` process per Rex server. It listens to Rex events (`terminal.program_status_changed`, session and window changes) and writes `~/.local/state/rex-radar/<source>.json` atomically, at most every 0.3 s and at least every 15 s as a heartbeat. A snapshot older than two heartbeats counts as stale. `REX_RADAR_DIR` overrides the directory everywhere.
 2. **Mac app** (`Sources/RexRadar`). `Watchers` spawns and restarts one watcher per configured server. It runs the Lua script from the app bundle, or from the repo checkout during development. `Store` polls the snapshots every 2 s, merges them into `Row`s ordered by urgency, and mirrors them into the App Group for the sandboxed widget (`Shared/SharedState.swift`). `Rex.swift` drives Rex only through the `rex` CLI binary. The wire protocol is undocumented, so don't write a native client. The CLI is found via `REX_BIN` or the path inside the Rex app bundle, because GUI apps don't get the shell's PATH.
 3. **Opening a pane**. The app calls `session.focus_block`, then `client.perform` → `session.select` on the Rex app client of the pane's server, chosen by label (`clientLabel` default, which is this Mac's name). Remote servers go through `rex -S`.
-4. **Hub** (`HubServer.swift`). It serves HTTP on port 7298 (`GET /v1/agents`, `POST /v1/open`, `POST /v1/answer`) with a bearer token, advertised over Bonjour as `_rexradar._tcp`. `/v1/answer` returns 403 unless the "let iPhone & iPad answer" setting is on.
+4. **Hub** (`HubServer.swift`). It serves HTTP on port 7298 (`GET /v1/agents`, `POST /v1/open`, `POST /v1/answer`, `GET /v1/skills`, `POST /v1/skill`) with a bearer token, advertised over Bonjour as `_rexradar._tcp`. `/v1/answer` returns 403 unless the "let iPhone & iPad answer" setting is on, and the skill endpoints unless "let iPhone & iPad send skills" is on.
 5. **iOS** (`Sources/RexRadarMobile`). `HubClient` holds the paired Macs, with tokens in the Keychain, and talks to the hub. `WatchSync` pushes the paired Macs to the watch as the WatchConnectivity application context.
 6. **watchOS** (`Sources/RexRadarWatch`). It has no pairing of its own and compiles `RexRadarMobile/HubClient.swift` directly.
 7. **Widgets**. `Sources/RexRadarWidget` builds three times (macOS, iOS and watchOS targets). Each has its own App Group: macOS uses `<team>.house.milapan.rex-radar`, iOS uses `group.house.milapan.rex-radar`, and watchOS uses `group.house.milapan.rex-radar.watch`.
 
-`Sources/Shared` goes into every target. The watch targets exclude `QuestionsForm.swift`, so watch-incompatible UI must stay out of the other Shared files or be excluded in `project.yml`.
+`Sources/Shared` goes into every target. The watch targets exclude `QuestionsForm.swift` and `SkillPicker.swift`, so watch-incompatible UI must stay out of the other Shared files or be excluded in `project.yml`.
+
+### Sending skills
+
+`SkillCatalog.swift` lists what Claude's slash menu offers for a pane's working directory (project, user and enabled plugin skills and commands, from the Mac's disk), and `Rex.sendSkill` types `/name args` and Enter. Only panes on the Mac's own server qualify (`Row.takesSkills`). See README "Sending skills".
 
 ### Answering Claude's questions
 

@@ -18,8 +18,14 @@ final class Preferences: ObservableObject {
     didSet { UserDefaults.standard.set(allowPhoneAnswers, forKey: "allowPhoneAnswers") }
   }
 
+  /// Off by default too: a skill can do anything Claude can.
+  @Published var allowPhoneSkills: Bool {
+    didSet { UserDefaults.standard.set(allowPhoneSkills, forKey: "allowPhoneSkills") }
+  }
+
   init() {
     allowPhoneAnswers = UserDefaults.standard.bool(forKey: "allowPhoneAnswers")
+    allowPhoneSkills = UserDefaults.standard.bool(forKey: "allowPhoneSkills")
     clientLabel = UserDefaults.standard.string(forKey: "clientLabel") ?? Host.current().localizedName ?? ""
   }
 
@@ -72,6 +78,16 @@ struct SettingsView: View {
         Text(
           "Answering types into the Claude pane in Rex. Rex Radar only types for a pane that's showing a question "
             + "list, only option numbers, Tab and one short line, and checks Claude's review before submitting.")
+      }
+
+      Section {
+        Toggle("Let iPhone & iPad send skills to Claude", isOn: $prefs.allowPhoneSkills)
+      } header: {
+        Text("Skills")
+      } footer: {
+        Text(
+          "Sending types /skill and its arguments into the Claude pane in Rex, then Enter. Rex Radar only sends "
+            + "skills Claude offers in that pane, one line, and never while Claude waits on a question or a permission.")
       }
 
       Section {

@@ -11,16 +11,22 @@ enum Render {
     return URL(fileURLWithPath: args[i + 1])
   }
 
-  static func run(store: Store, into dir: URL) {
+  static func run(store: Store, into dir: URL) async {
     store.reload()
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    snap(MenuPanel(store: store), size: nil, to: dir.appendingPathComponent("panel.png"))
-    snap(MainWindow(store: store), size: NSSize(width: 860, height: 560), to: dir.appendingPathComponent("window.png"))
-    snap(SettingsView(prefs: .shared), size: nil, to: dir.appendingPathComponent("settings.png"))
+    await snap(MenuPanel(store: store), size: nil, to: dir.appendingPathComponent("panel.png"))
+    await snap(MainWindow(store: store), size: NSSize(width: 860, height: 560), to: dir.appendingPathComponent("window.png"))
+    await snap(SettingsView(prefs: .shared), size: nil, to: dir.appendingPathComponent("settings.png"))
+    if let row = store.rows.first(where: \.takesSkills) {
+      store.picking = row
+      // The picker reads the skills first.
+      await snap(MenuPanel(store: store), size: nil, to: dir.appendingPathComponent("panel-skills.png"), wait: 2.5)
+      store.picking = nil
+    }
     NSApp.terminate(nil)
   }
 
-  private static func snap<V: View>(_ view: V, size: NSSize?, to url: URL) {
+  private static func snap<V: View>(_ view: V, size: NSSize?, to url: URL, wait: TimeInterval = 0.6) async {
     let host = NSHostingView(rootView: view.environment(\.colorScheme, .dark))
     let fitted = size ?? host.fittingSize
     let window = NSWindow(
@@ -36,7 +42,8 @@ enum Render {
     window.contentView = effect
     window.orderFrontRegardless()
     host.layoutSubtreeIfNeeded()
-    RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+    // Sleeping, not spinning the run loop: the views' tasks need the main actor meanwhile.
+    try? await Task.sleep(for: .seconds(wait))
     guard let rep = effect.bitmapImageRepForCachingDisplay(in: effect.bounds) else { return }
     effect.cacheDisplay(in: effect.bounds, to: rep)
     try? rep.representation(using: .png, properties: [:])?.write(to: url)

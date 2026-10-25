@@ -153,6 +153,35 @@ enum Rex {
     try key(row, "1")
   }
 
+  // MARK: Skills
+
+  /// Where the pane's program runs: the foreground process's working directory.
+  static func workingDirectory(_ row: Row) throws -> String? {
+    let process = try call(
+      "com.superlogical.terminal.process",
+      ["session_id": row.pane.sessionId, "block_id": row.pane.blockId, "args": [String: String]()],
+      server: row.server) as? [String: Any]
+    return (process?["foreground"] as? [String: Any])?["cwd"] as? String
+  }
+
+  /// Whether the pane's program waits on anything (a question, a permission): typing would answer it.
+  static func isBlocked(_ row: Row) throws -> Bool {
+    let status = try call(
+      "com.superlogical.terminal.program_status",
+      ["session_id": row.pane.sessionId, "block_id": row.pane.blockId, "args": [String: String]()],
+      server: row.server) as? [String: Any]
+    return (status?["records"] as? [[String: Any]] ?? []).contains { $0["state"] as? String == "blocked" }
+  }
+
+  /// Runs a skill the way you would: types `/name args` at Claude's prompt, then Enter. One Enter
+  /// submits even while the slash menu is open, as tested on Claude Code 2.1.310; while Claude
+  /// works, it queues the message.
+  static func sendSkill(_ row: Row, _ request: SkillRequest) throws {
+    guard try !isBlocked(row) else { throw SkillError.busy }
+    try type(row, request.line)
+    try key(row, "enter")
+  }
+
   /// Runs `rex [-S server] <args>` and returns its output.
   private static func run(_ args: [String], server: String?) throws -> Data {
     guard let rex = executable else { throw Failure.noRex }

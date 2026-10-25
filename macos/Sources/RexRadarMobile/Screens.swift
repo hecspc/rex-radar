@@ -78,6 +78,7 @@ struct AgentList: View {
   let agents: [Agent]
   let title: String
   @State private var answering: Agent?
+  @State private var picking: Agent?
 
   var body: some View {
     ScrollView {
@@ -98,7 +99,8 @@ struct AgentList: View {
             ForEach(agents) { agent in
               HeroCard(
                 row: agent.row, open: { client.open(agent) },
-                answer: client.canAnswer(agent) ? { answering = agent } : nil)
+                answer: client.canAnswer(agent) ? { answering = agent } : nil,
+                skill: client.canSendSkill(agent) ? { picking = agent } : nil)
             }
           }
         }
@@ -107,6 +109,7 @@ struct AgentList: View {
     }
     .refreshable { await client.refresh() }
     .sheet(item: $answering) { agent in AnswerSheet(client: client, agent: agent) }
+    .sheet(item: $picking) { agent in SkillSheet(client: client, agent: agent) }
     // For simulators: `SIMCTL_CHILD_REXRADAR_SHOW_ANSWER=1` opens the first answerable form.
     .task(id: agents.map(\.id)) {
       guard ProcessInfo.processInfo.environment["REXRADAR_SHOW_ANSWER"] == "1", answering == nil else { return }
@@ -255,6 +258,31 @@ struct AnswerSheet: View {
         .frame(maxWidth: .infinity)
       }
       .navigationTitle(agent.row.pane.session ?? "Questions")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+    }
+  }
+}
+
+/// The skills Claude offers in an agent's pane, sent to the Mac that reported it.
+struct SkillSheet: View {
+  let client: HubClient
+  let agent: Agent
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    NavigationStack {
+      SkillPicker(
+        load: { try await client.skills(agent) },
+        send: { request in
+          try await client.sendSkill(agent, request)
+          dismiss()
+        }
+      )
+      .padding()
+      .frame(maxWidth: 640)
+      .frame(maxWidth: .infinity)
+      .navigationTitle(agent.row.pane.session ?? "Skills")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
     }

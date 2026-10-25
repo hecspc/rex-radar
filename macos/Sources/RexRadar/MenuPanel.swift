@@ -18,8 +18,19 @@ struct MenuPanel: View {
               QuestionsForm(draft: draft, send: { try await store.answer(row, $0) }, cancel: { store.stopAnswering() })
             }
           }
+        } else if let row = store.picking {
+          GlassCard(padding: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+              Text("\(row.pane.session ?? "Session") · \(row.tabLabel)").font(.subheadline).foregroundStyle(.secondary)
+              SkillPicker(
+                load: { try await store.skills(for: row) }, send: { try await store.sendSkill(row, $0) },
+                cancel: { store.picking = nil }, listHeight: 300)
+            }
+          }
         } else if let hero = store.rows.first {
-          HeroCard(row: hero, open: { open(hero) }, answer: hero.questions == nil ? nil : { store.startAnswering(hero) })
+          HeroCard(
+            row: hero, open: { open(hero) }, answer: hero.questions == nil ? nil : { store.startAnswering(hero) },
+            skill: hero.takesSkills ? { store.picking = hero } : nil)
           let rest = Array(store.rows.dropFirst())
           if !rest.isEmpty { others(rest) }
         } else {
@@ -61,7 +72,9 @@ struct MenuPanel: View {
         GlassCard {
           VStack(alignment: .leading, spacing: 4) {
             Text(source.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary).tracking(1)
-            ForEach(rows) { row in AgentRow(row: row) { open(row) } }
+            ForEach(rows) { row in
+              AgentRow(row: row, open: { open(row) }, skill: row.takesSkills ? { store.picking = row } : nil)
+            }
           }
         }
       }

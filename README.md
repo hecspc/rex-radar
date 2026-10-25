@@ -104,7 +104,8 @@ macos/bundle.sh --install                                     # app only, comman
 
 - **Menu bar**: the app icon's dino and radar as a one-ink template glyph (`MenuIcon.swift`); a blip and a count
   when agents want you.
-- **Panel** (Liquid Glass): the most urgent agent as a card with **Open in Rex**, the others in a card per server.
+- **Panel** (Liquid Glass): the most urgent agent as a card with **Open in Rex** and **Skill**, the others in a card
+  per server (right-click one for **Send Skill…**). Opening a pane closes the panel.
 - **Window**: a server sidebar and a card per agent.
 - **Widget** (small, medium, large): agents by urgency; tap one to open it in Rex (`rexradar://open?id=…`).
   The sandboxed widget can't read the snapshots, so the app copies the merged rows into the App Group
@@ -120,7 +121,8 @@ macos/bundle.sh --install                                     # app only, comman
 iPhone, with the same glass cards. It talks to the Mac app, which is the hub (the "main" server): taps on the
 phone open agents in the Mac's Rex.
 
-- **Hub** (in the Mac app): HTTP on port 7298, `GET /v1/agents` and `POST /v1/open?id=…`, every request with
+- **Hub** (in the Mac app): HTTP on port 7298, `GET /v1/agents`, `POST /v1/open?id=…`, `POST /v1/answer?id=…`,
+  `GET /v1/skills?id=…` and `POST /v1/skill?id=…`, every request with
   `Authorization: Bearer <token>`; advertised over Bonjour as `_rexradar._tcp`.
 - **Pairing**: the Mac window's **iPhone & iPad** page shows a QR code per address (Tailscale first). Scan it with
   the Camera app: the `rexradar://pair?host=…&token=…` link opens the app and pairs it. The token goes to the
@@ -173,6 +175,29 @@ on (off by default): `POST /v1/answer?id=…` answers `403` otherwise.
 question). Register it in `~/.claude/settings.json`: `ask` on PreToolUse with matcher `AskUserQuestion`, `done` on
 PostToolUse and PostToolUseFailure (same matcher), Stop and UserPromptSubmit (a cancelled list runs no post-tool
 hook).
+
+### Sending skills
+
+Any Claude Code pane on the Mac's own Rex server can be sent a skill from the Mac panel, the window, iPhone and
+iPad (not the watch): **Skill** on its card opens a picker that filters as you type (every word must appear in the
+name or description; Return picks the first match), grouped **Project**, **User** and **Plugins**, then takes
+optional arguments.
+
+- **Catalog** (`SkillCatalog.swift`): what Claude Code's slash menu lists, read from the Mac's disk for the pane's
+  working directory (the foreground process's `cwd` from `com.superlogical.terminal.process`). Project:
+  `.claude/skills/*/SKILL.md` and `.claude/commands/**/*.md` in that directory and its parents below `~`, nearest
+  first. User: the same under `~/.claude`. Plugins: `skills/` and `commands/` of each plugin in
+  `~/.claude/plugins/installed_plugins.json` that `enabledPlugins` turns on (user, then project settings), or that's
+  managed and not turned off, as `/<plugin>:<name>`. `user-invocable: false` skills are left out. Built-in commands
+  and skills that don't live on disk aren't listed.
+- **Sending**: types `/name arguments` into the pane, then Enter. Verified 2026-10-25 on Claude Code 2.1.310: one
+  Enter submits with or without arguments, even while the slash menu is open; while Claude works the message
+  queues. Refused when Rex reports any blocked record (a question or permission prompt would take the keys), when
+  the name isn't in the pane's catalog, or when the arguments aren't one line of at most 500 characters.
+  Whatever is already typed at Claude's prompt stays and comes first.
+- **Phones**: only when **Settings → Let iPhone & iPad send skills to Claude** is on (off by default):
+  `GET /v1/skills?id=…` and `POST /v1/skill?id=…` (body `{"name", "arguments"}`) answer `403` otherwise. Remote
+  servers aren't offered: their skills are on another machine's disk.
 
 ### App icon
 

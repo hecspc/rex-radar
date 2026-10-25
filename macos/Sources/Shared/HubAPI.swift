@@ -8,4 +8,6 @@ struct AgentsResponse: Codable {
   var writtenAt: Date
   /// Whether this Mac lets phones answer Claude's questions (Settings, off by default).
   var answering: Bool? = nil
+  /// Whether this Mac lets phones send skills to Claude (Settings, off by default).
+  var skills: Bool? = nil
 }
