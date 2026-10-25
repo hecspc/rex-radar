@@ -216,6 +216,8 @@ phone open agents in the Mac's Rex.
   iPad sidebar sits beside them in landscape and slides over in portrait.
 - Verified 2026-10-25 on an iPhone Air (iOS 27), paired by QR over the local network after allowing local
   network access.
+- Verified 2026-10-25 on an iPad Pro 10.5" (2017, iPadOS 17.7.11), the oldest supported release, without Liquid
+  Glass.
 - Builds with the same project: `xcodebuild -scheme RexRadarMobile …`. In a simulator, pair without the URL prompt
   with `SIMCTL_CHILD_REXRADAR_PAIR='rexradar://pair?…' xcrun simctl launch <sim> house.milapan.rex-radar.ios`.
 
