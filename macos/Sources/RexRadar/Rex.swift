@@ -129,7 +129,8 @@ enum Rex {
   /// a single-choice option's number selects it and moves on; "Type something" is the number after
   /// the options, then the text and Enter; on a multi-select question numbers toggle and Tab moves
   /// on. A list ends on a review screen, which must show exactly our answers before "1" submits;
-  /// a single single-choice question submits as soon as it's picked.
+  /// a single single-choice question submits as soon as it's picked. Qoder 1.1.78's form is the
+  /// same, except that its review's "Submit answers" has no number and is picked with Enter.
   static func answer(_ row: Row, questions: PendingQuestions, answers: [QuestionAnswer]) throws {
     if questions.app == "codex" || questions.app == "antigravity" {
       return try answerOneByOne(row, questions: questions, answers: answers)
@@ -164,7 +165,7 @@ enum Rex {
     for (q, expected) in zip(qs, questions.reviewLines(answers)) {
       guard shows(review, "→ " + expected) else { throw AnswerError.reviewMismatch("\(q.header ?? q.question): \(expected)") }
     }
-    try key(row, "1")
+    try key(row, questions.app == "qoder" ? "enter" : "1")
   }
 
   // MARK: Permissions
@@ -183,8 +184,9 @@ enum Rex {
     return PendingPermission.prompt(fromScreen: screen).map(PendingPermission.init)
   }
 
-  /// Allows the permission once ("1", the first option, "Yes") or denies it (Esc), as tested on
-  /// Claude Code 2.1.310, Codex 0.164.0 and Antigravity 1.4.7: only while the agent still asks
+  /// Allows the permission once ("1", the first option, "Yes" or "Allow once") or denies it (Esc),
+  /// as tested on Claude Code 2.1.310, Codex 0.164.0, Antigravity 1.4.7 and Qoder 1.1.78: only
+  /// while the agent still asks
   /// what `prompt` says, and checks the prompt went away.
   static func decide(_ row: Row, _ decision: PermissionDecision, prompt: String) throws {
     guard let asked = try permission(row) else { throw PermissionError.notWaiting }
@@ -211,17 +213,21 @@ enum Rex {
   }
 
   /// Runs a skill the way you would, as tested on 2026-10-25; while the agent works, the message
-  /// queues.
-  /// - Claude Code 2.1.310 and Antigravity 1.4.7: `/name args`, then Enter, which submits even
-  ///   while the slash menu is open.
+  /// queues, except on Qoder.
+  /// - Claude Code 2.1.310, Antigravity 1.4.7 and Qoder 1.1.78: `/name args`, then Enter, which
+  ///   submits even while the slash menu is open. Qoder won't queue it while it works.
   /// - Codex 0.164.0: `$name args`, then Tab. Enter would only pick from the `$` menu (a space
   ///   after a bare name closes it), and while Codex works Enter steers the running turn where
   ///   Tab queues.
   static func sendSkill(_ row: Row, _ request: SkillRequest, agent: SkillAgent) throws {
-    guard try !isBlocked(row) else { throw SkillError.busy }
+    let records = try statusRecords(row)
+    guard !records.contains(where: { $0["state"] as? String == "blocked" }) else { throw SkillError.busy }
+    guard agent.queues || !records.contains(where: { $0["state"] as? String == "working" }) else {
+      throw SkillError.working
+    }
     let line = request.line(agent)
     switch agent {
-    case .claudeCode, .antigravity:
+    case .claudeCode, .antigravity, .qoder:
       try type(row, line)
       try key(row, "enter")
     case .codex:

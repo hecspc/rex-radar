@@ -1,0 +1,68 @@
+#!/bin/sh
+# Qoder CLI hook → Rex: what `rex skill setup` does for Claude Code and Codex,
+# which it doesn't know Qoder for yet. On SessionStart it prints Rex's session
+# context; on every event it reports Qoder's state to the pane with OSC 7501
+# (Rex program status), so the tab, the session picker and Rex Radar show it:
+# idle, working, blocked (permission, or question for AskUserQuestion), done
+# with the reply, cleared on exit.
+#
+# Register it in ~/.qoder/settings.json, with no matcher, for SessionStart,
+# UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse,
+# PostToolUseFailure, Stop and SessionEnd. Needs jq. Must never fail: it
+# always exits 0. Verified 2026-10-25 with qodercli 1.1.78.
+input=$(cat)
+[ -n "$REX_SESSION" ] || exit 0
+command -v jq >/dev/null 2>&1 || exit 0
+
+field() { printf '%s' "$input" | jq -r "$1 // empty" 2>/dev/null; }
+event=$(field .hook_event_name)
+
+# The pane's terminal: the hook's own controlling tty, else the first
+# ancestor (qodercli) that has one.
+tty=
+if (: >/dev/tty) 2>/dev/null; then
+  tty=/dev/tty
+else
+  pid=$PPID
+  while [ -n "$pid" ] && [ "$pid" -gt 1 ]; do
+    t=$(ps -o tty= -p "$pid" 2>/dev/null | tr -d ' ')
+    case "$t" in ''|'??') ;; *) tty=/dev/$t; break ;; esac
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+  done
+fi
+
+# status STATE [KIND] [MSG]: one OSC 7501 report on the root record.
+status() {
+  [ -n "$tty" ] || return 0
+  body="state=$1:app=qoder"
+  [ -n "$2" ] && body="$body:kind=$2"
+  # msg is one line of valid UTF-8, at most 2048 bytes decoded; keep it short.
+  # Rex drops the whole report if msg isn't valid UTF-8, so cut by character
+  # (jq), never by byte (cut -c in the C locale splits "—" and "é").
+  m=$(printf '%s' "$3" | jq -Rrs 'gsub("[[:cntrl:]]+"; " ") | ltrimstr(" ") | rtrimstr(" ") | .[0:200]' 2>/dev/null \
+    | tr -d '\n')
+  [ -n "$m" ] && body="$body:msg=$(printf '%s' "$m" | base64 | tr -d '\n')"
+  printf '\033]7501;%s\033\\' "$body" >"$tty" 2>/dev/null
+}
+
+case "$event" in
+  SessionStart)
+    status idle
+    rex __internal session-start --agent claude 2>/dev/null ;;
+  UserPromptSubmit|PreToolUse|PostToolUse|PostToolUseFailure)
+    status working ;;
+  PermissionRequest)
+    tool=$(field .tool_name)
+    if [ "$tool" = AskUserQuestion ]; then
+      # Qoder asks its questions through a permission request; Rex calls it a question.
+      status blocked question "$(field '.tool_input.questions[0].question')"
+    else
+      what=$(field '.tool_input.command // .tool_input.file_path // .tool_input.path')
+      status blocked permission "Approve $tool${what:+: $what}"
+    fi ;;
+  Stop)
+    status done "" "$(field .last_assistant_message)" ;;
+  SessionEnd)
+    status clear ;;
+esac
+exit 0

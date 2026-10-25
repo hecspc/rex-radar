@@ -132,16 +132,19 @@ final class Store: ObservableObject {
     if let row = rows.first(where: { $0.id == id }) { open(row) }
   }
 
-  /// The question list Claude's hook saved for a pane, but only while Rex says the pane is waiting on
-  /// a question: a cancelled list leaves its file behind. The hook runs on this Mac, so only this
-  /// Mac's own Rex server has them.
+  /// The question list Claude's hook saved for a pane (Qoder runs it too), but only while Rex says
+  /// the pane is waiting on a question: a cancelled list leaves its file behind. The hook runs on
+  /// this Mac, so only this Mac's own Rex server has them.
   private func questions(for pane: Pane, server: String?) -> PendingQuestions? {
     guard server == nil, pane.state == "blocked", pane.kind == "question" else { return nil }
     let file = directory.appendingPathComponent("questions/\(pane.blockId).json")
     guard let data = try? Data(contentsOf: file) else { return nil }
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
-    return try? decoder.decode(PendingQuestions.self, from: data)
+    guard var questions = try? decoder.decode(PendingQuestions.self, from: data) else { return nil }
+    // The file doesn't say which agent asked; the pane does.
+    if let app = pane.app, PendingQuestions.hookApps.contains(app) { questions.app = questions.app ?? app }
+    return questions
   }
 
   /// Question lists read from Codex's and Antigravity's own records (AgentQuestions), by pane
@@ -153,7 +156,7 @@ final class Store: ObservableObject {
   private func agentQuestions(for row: Row) -> PendingQuestions? {
     let pane = row.pane
     guard row.server == nil, !row.stale, pane.state == "blocked", pane.kind == "question", let app = pane.app,
-      app != "claude-code", PendingQuestions.apps.contains(app)
+      !PendingQuestions.hookApps.contains(app), PendingQuestions.apps.contains(app)
     else { return nil }
     let key = row.id + "@" + (pane.updatedAt ?? "")
     if let questions = agentQuestions[key] { return questions }

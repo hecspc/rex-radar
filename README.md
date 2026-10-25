@@ -27,19 +27,19 @@ its questions and send agents skills, from wherever you are.
 - **Every agent at a glance**, most urgent first: blocked, error, done, working, idle; with Claude's one-line
   summary and conversation topic.
 - **Open in Rex**: click or tap an agent to switch your Mac's Rex app to its pane, on any of your Rex servers.
-- **Answer agents' questions** (Claude Code's AskUserQuestion, Codex's and Antigravity's question forms) from
-  the Mac, iPhone, iPad, watch or Apple TV.
-- **Send skills**: pick any skill or slash command Claude Code, Codex or Antigravity offers in a pane (project,
-  user and plugin), filtered as you type, and send it with arguments.
+- **Answer agents' questions** (Claude Code's and Qoder's AskUserQuestion, Codex's and Antigravity's question
+  forms) from the Mac, iPhone, iPad, watch or Apple TV.
+- **Send skills**: pick any skill or slash command Claude Code, Codex, Antigravity or Qoder offers in a pane
+  (project, user and plugin), filtered as you type, and send it with arguments.
 - **Widgets and complications** on the Mac desktop, Home and Lock Screen, and the watch face.
 - **Apple TV**: a full-screen grid of your agents for the wall, paired by allowing it on the Mac.
 
 ## Requirements
 
 - Rex (beta) on a Mac running macOS 26, with **Remote Control** on in the Rex app's settings.
-- Claude Code 2.1.310 or later, which reports its status to Rex. Codex (Rex detects its status itself) and
-  Antigravity (`agy`, reports its own) show up too. Other agents show up if they report
-  [program status](https://www.superlogical.com/rex/docs/build/program-status).
+- Claude Code 2.1.310 or later, which reports its status to Rex. Codex (Rex detects its status itself),
+  Antigravity (`agy`, reports its own) and Qoder (`qodercli`, through `hooks/qoder-rex-status`) show up too. Other
+  agents show up if they report [program status](https://www.superlogical.com/rex/docs/build/program-status).
 - To build: Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
   For the widgets, the iOS app and the watch app, an Apple Development team (a free Personal Team works for your
   own devices).
@@ -67,6 +67,9 @@ DEVELOPMENT_TEAM=<team id> BUNDLE_PREFIX=com.yourname scripts/build.sh --install
   **Manage Servers…** (they need to be hosts your Rex app is connected to).
 - To answer Claude's question lists, install the hook in `hooks/claude-rex-questions` (needs `jq`); see
   [Answering questions](#answering-questions). Codex and Antigravity need nothing installed.
+- For Qoder, which Rex doesn't set up yet, register `hooks/qoder-rex-status` (its status) and
+  `hooks/claude-rex-questions` (its question lists) in `~/.qoder/settings.json`; see
+  [Qoder](#data-all-from-the-rex-server-api).
 
 **iPhone, iPad and Apple Watch**: generate the project and build the `RexRadarMobile` scheme (the watch app is
 embedded) to your device:
@@ -101,7 +104,7 @@ versions, in this README.
 [MIT](LICENSE)
 
 The agent logos in `macos/Resources/AgentIcons.xcassets` are trademarks of their owners (Claude Code: Anthropic;
-Codex: OpenAI; Antigravity: Google), used only to show which agent runs in a pane. They're rendered from
+Codex: OpenAI; Antigravity: Google; Qoder: Qoder), used only to show which agent runs in a pane. They're rendered from
 [lobehub/icons](https://github.com/lobehub/icons) (`@lobehub/icons-static-svg` 1.100.0, MIT) and aren't covered
 by this project's licence.
 
@@ -111,7 +114,8 @@ by this project's licence.
 
 A sidebar like Rex's own: servers → sessions → tabs → panes. Each pane running an agent shows:
 
-- **Agent**: its logo, then its name: Claude Code, Codex and Antigravity (`Resources/AgentIcons.xcassets`); any
+- **Agent**: its logo, then its name: Claude Code, Codex, Antigravity and Qoder (`Resources/AgentIcons.xcassets`;
+  Qoder's has a white variant for dark mode, since its logo's dark half is drawn in the text colour); any
   other agent, and the SwiftPM build (no asset catalog), get a grey chip symbol instead.
 - **State**: idle, working, blocked (permission, question or auth), done or error.
 - **Summary**: one line about what the agent did or needs.
@@ -162,8 +166,21 @@ start, `working`, `blocked` with `kind=permission` and the command in `msg` ("Ap
 `done` with the reply in `msg`, all with `app=antigravity`. It sets no terminal title, so the card shows `msg`.
 Gemini CLI is deprecated in favour of it and was not tested.
 
-Codex (in Plan mode) and Antigravity also report `blocked` with `kind=question` while they ask; see
-[Answering questions](#answering-questions). Answering, permissions and skills work for all three.
+**Qoder (`qodercli`) reports its status through `hooks/qoder-rex-status`**, because `rex skill setup` doesn't
+know Qoder yet. Qoder runs Claude Code's hook events with Claude's input, and hooks run with the pane's
+environment and terminal. Register the hook in `~/.qoder/settings.json` (no matcher) on SessionStart,
+UserPromptSubmit, PreToolUse, PermissionRequest, PostToolUse, PostToolUseFailure, Stop and SessionEnd. It
+writes OSC 7501 with `app=qoder`: `idle` at start, `working`, `blocked` with `kind=permission` and "Approve
+Bash: <command>" in `msg`, `blocked` with `kind=question` and the first question for AskUserQuestion (which
+Qoder also sends through PermissionRequest), `done` with the reply in `msg`, and `clear` on exit. Verified
+2026-10-25 with qodercli 1.1.78. Rex drops a whole report whose `msg` isn't valid UTF-8, so the hook cuts
+`msg` by character: cut by byte, a reply with "—" near the cut left the pane `blocked`. After you deny a
+permission no hook runs until Stop, so the card stays blocked until Qoder finishes its reply. Qoder's terminal
+title is `◇ <topic> | Ready` (`✦ … | Working`), and `Qoder CLI | Ready` before the first prompt; the topic
+drops the status.
+
+Codex (in Plan mode), Antigravity and Qoder also report `blocked` with `kind=question` while they ask; see
+[Answering questions](#answering-questions). Answering, permissions and skills work for all four.
 
 ### Opening a tab in the right app
 
@@ -354,6 +371,13 @@ question). Register it in `~/.claude/settings.json`: `ask` on PreToolUse with ma
 PostToolUse and PostToolUseFailure (same matcher), Stop and UserPromptSubmit (a cancelled list runs no post-tool
 hook).
 
+**Qoder** (AskUserQuestion), verified 2026-10-25 with qodercli 1.1.78: the same tool, input and form as Claude
+Code, so the same hook saves the list: register `hooks/claude-rex-questions` in `~/.qoder/settings.json` exactly
+as for Claude (Qoder honours the `AskUserQuestion` matcher). Rex Radar takes the agent from the pane. The keys
+are Claude's, except that the review's "Submit answers" has no number, so Enter submits it. Tested with a
+single-choice plus a multi-select list, a single question answered with free text ("4. Type something.") and a
+free-text answer followed by an option.
+
 **Codex** (`request_user_input`), verified 2026-10-25 with codex-cli 0.164.0 (`Sources/RexRadar/AgentQuestions.swift`):
 
 - Codex has the tool only in Plan mode (Shift+Tab): one to three single-choice questions, each with two or three
@@ -383,23 +407,26 @@ hook).
   it asks, the conversation's latest step is the call, and its payload holds the JSON arguments
   (`{"questions":[{"question","options","is_multi_select"}]}`); Rex's `msg` must equal the first question.
 
-For both, before typing Rex must report the question and the screen must show "Question 1/N" with the first
+For Codex and Antigravity, before typing Rex must report the question and the screen must show "Question 1/N" with the first
 question (if you've already moved on in Rex, it refuses: finish there); afterwards Rex must no longer report it.
 Free text stays single-choice only, as for Claude. Test without clicking: `RexRadar --answer <block id>
 '[{"options":[1]},{"text":"Teal"}]'`.
 
 ### Allowing permissions
 
-When Claude Code, Codex or Antigravity waits on a permission (Rex: `blocked`, `kind=permission`), the card shows
-what it asks, with **Allow** and **Deny** (Mac panel and window, iPhone, iPad, Apple Watch, and Select on Apple
-TV). Allow presses `1`, the first option ("Yes", this once); Deny presses Esc. Verified 2026-10-25 on Claude Code
-2.1.310, Codex 0.164.0 and Antigravity 1.4.7: all three put "1. Yes…" first and cancel on Esc, which leaves the
-agent idle.
+When Claude Code, Codex, Antigravity or Qoder waits on a permission (Rex: `blocked`, `kind=permission`), the card
+shows what it asks, with **Allow** and **Deny** (Mac panel and window, iPhone, iPad, Apple Watch, and Select on
+Apple TV). Allow presses `1`, the first option ("Yes", this once); Deny presses Esc. Verified 2026-10-25 on Claude
+Code 2.1.310, Codex 0.164.0 and Antigravity 1.4.7: all three put "1. Yes…" first and cancel on Esc, which leaves
+the agent idle. Qoder 1.1.78 puts "1. Allow once" first (then "Always allow…", "Reject and type something",
+"No"); Esc rejects the tool and Qoder goes on to reply, then reports `done`.
 
-- What it asks is Rex's `msg` (Claude Code: "approve Bash: …", Antigravity: "Approve RunCommand: …"). Codex sends
+- What it asks is Rex's `msg` (Claude Code: "approve Bash: …", Antigravity: "Approve RunCommand: …", Qoder:
+  "Approve Bash: …"). Codex sends
   no `msg`, so the Mac reads the prompt off the screen, once per status update: the lines above "1. Yes", up to
   its "• Running …" line, rejoined where a narrow pane wrapped them.
-- Before pressing a key, Rex must still report a permission, the screen must show "1. Yes", and the prompt must
+- Before pressing a key, Rex must still report a permission, the screen must show "1. Yes" (or "1. Allow
+  once"), and the prompt must
   equal the one the device showed (the phone sends it back in `PermissionReply`). Afterwards the prompt must be
   gone, else it says so.
 - Phones can do it only when **Settings → Let iPhone & iPad allow or deny permissions** is on (off by default):
@@ -409,7 +436,7 @@ agent idle.
 
 ### Sending skills
 
-Any Claude Code, Codex or Antigravity pane on the Mac's own Rex server can be sent a skill from the Mac panel, the
+Any Claude Code, Codex, Antigravity or Qoder pane on the Mac's own Rex server can be sent a skill from the Mac panel, the
 window, iPhone and iPad (not the watch or Apple TV): **Skill** on its card opens a picker that filters as you type
 (every word must appear in the name or description; Return picks the first match), grouped **Project**, **User**
 and **Plugins**, then takes optional arguments.
@@ -437,6 +464,16 @@ and **Plugins**, then takes optional arguments.
     in `~/.gemini/antigravity-cli/builtin/skills`: agy's menu offers only some of them (on 1.4.7,
     `agy-customizations` and `antigravity-guide`) and nothing on disk says which. Not offered: `.gemini/skills`,
     `~/.agents/skills` and legacy `.agents/workflows`.
+  - **Qoder**, `/name`, as `qodercli skills list` and the slash menu show them on 1.1.78. Project:
+    `.qoder/skills/*/SKILL.md`, `.qoder/commands/**/*.md` and `.agents/skills/*/SKILL.md` in the working directory
+    only (not its parents, nor `.claude/`). User: the same under `~` (`~/.qoder/skills`, `~/.qoder/commands`,
+    `~/.agents/skills`; not `~/.claude/skills`). Plugins: each plugin in `~/.qoder/plugins/installed_plugins_v2.json`
+    that's `enabled` there and not turned off in `enabledPlugins` of `~/.qoder/settings.json`, and whose manifest
+    (`.qoder-plugin/plugin.json` or `plugin.json`) has a `name` (Qoder skips the Atlassian plugin, which has
+    none): its skills as `/<plugin>:<name>` (the menu shows the bare name with the plugin beside it, and Tab
+    completes the full one), and the commands its manifest's `commands` map names as `/<plugin>:<key>`
+    (`/slack:slack-standup`). `user-invocable: false` skills are left out (the menu hides them; `skills list`
+    doesn't), and so are its bundled skills and commands (`/review`, `/imagegen`, `/sites-…`).
 - **Sending**: types the skill and its arguments into the pane, then the key that submits it. Refused when Rex
   reports any blocked record (a question or permission prompt would take the keys), when the name isn't in the
   pane's catalog, or when the arguments aren't one line of at most 500 characters. Whatever is already typed at the
@@ -450,6 +487,10 @@ and **Plugins**, then takes optional arguments.
     block (seen in its session log), plugin skills too (`$plugin-management:plugin-management`).
   - Antigravity 1.4.7: `/name arguments`, then Enter, which submits even while the slash menu is open; while agy
     works the message queues and runs after the reply.
+  - Qoder 1.1.78: `/name arguments`, then Enter, which submits even while the slash menu is open, for project,
+    user and plugin skills and commands (plugin ones tested with a `--plugin-dir` plugin). While Qoder works it
+    says "Slash commands cannot be queued" and leaves the line at its prompt, so Rex Radar refuses a skill for a
+    working Qoder pane (and the **Skill** button is off until it's done).
 - **Phones**: only when **Settings → Let iPhone & iPad send skills to agents** is on (off by default):
   `GET /v1/skills?id=…` and `POST /v1/skill?id=…` (body `{"name", "arguments"}`) answer `403` otherwise. Each
   `Skill` carries its `sigil` (`/` or `$`); a Mac without it means `/`. Remote servers aren't offered: their skills

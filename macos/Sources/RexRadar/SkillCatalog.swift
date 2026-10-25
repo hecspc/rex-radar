@@ -26,6 +26,15 @@ import Foundation
 ///   `~/.gemini/config/config.json` or the plugin's manifest turns it off
 /// Its built-in skills are left out: it mounts only some of them, and nothing on disk says which.
 ///
+/// Qoder (as of 1.1.78), typed `/name`:
+/// - project: `.qoder/skills`, `.qoder/commands` and `.agents/skills` in the directory itself,
+///   not its parents
+/// - user: `~/.qoder/skills`, `~/.qoder/commands` and `~/.agents/skills`
+/// - plugins: each plugin in `~/.qoder/plugins/installed_plugins_v2.json` that's enabled there and
+///   not turned off by `enabledPlugins` in `~/.qoder/settings.json`, with a named manifest:
+///   its skills as `/<plugin>:<name>`, and its commands as the manifest names them
+/// Its bundled skills (`/review`, `/imagegen`, …) are left out, like Antigravity's.
+///
 /// Skills with `user-invocable: false` (Claude) or `disable-slash-command: true` (Antigravity)
 /// stay out: the agents' menus hide them too.
 enum SkillCatalog {
@@ -37,6 +46,7 @@ enum SkillCatalog {
     case .claudeCode: found = claude(dir, home: home)
     case .codex: found = codex(dir, home: home)
     case .antigravity: found = antigravity(dir, home: home)
+    case .qoder: found = qoder(dir, home: home)
     }
     // Found in priority order: the first of a name wins a clash.
     var seen = Set<String>()
@@ -83,6 +93,21 @@ enum SkillCatalog {
     found += scanSkills(config.appendingPathComponent("skills"), scope: .user, prefix: nil)
     for (name, root) in antigravityPlugins(roots: projects + [config], config: config) {
       found += scanSkills(root.appendingPathComponent("skills"), scope: .plugin, prefix: name)
+    }
+    return found
+  }
+
+  private static func qoder(_ dir: URL?, home: URL) -> [Skill] {
+    let qoder = home.appendingPathComponent(".qoder")
+    var found: [Skill] = []
+    // The working directory and the home directory, the same folders in each.
+    for (root, scope) in [(dir, Skill.Scope.project), (home, .user)] {
+      guard let root, scope == .user || root != home else { continue }
+      found += scan(root.appendingPathComponent(".qoder"), scope: scope, prefix: nil)
+      found += scanSkills(root.appendingPathComponent(".agents/skills"), scope: scope, prefix: nil)
+    }
+    for plugin in qoderPlugins(qoder: qoder) {
+      found += scanSkills(plugin.skills, scope: .plugin, prefix: plugin.name) + plugin.commands
     }
     return found
   }
@@ -233,6 +258,41 @@ enum SkillCatalog {
       }
     }
     return off
+  }
+
+  /// Qoder plugins that are on, with where their skills are and their commands. Qoder 1.1.78
+  /// skips a plugin whose manifest (`.qoder-plugin/plugin.json` or `plugin.json`) has no name. Its
+  /// commands are the manifest's `commands` map, `{"<name>": {"source", "description"}}`, as
+  /// `/<plugin>:<name>`, or else the `.md` files in its `commands` folder.
+  private static func qoderPlugins(qoder: URL) -> [(name: String, skills: URL, commands: [Skill])] {
+    let plugins = qoder.appendingPathComponent("plugins")
+    guard let installed = json(plugins.appendingPathComponent("installed_plugins_v2.json"))?["plugins"] as? [String: [[String: Any]]]
+    else { return [] }
+    let off = (json(qoder.appendingPathComponent("settings.json"))?["enabledPlugins"] as? [String: Bool] ?? [:])
+      .filter { !$0.value }.keys
+    var result: [(String, URL, [Skill])] = []
+    for (key, installs) in installed.sorted(by: { $0.key < $1.key }) where !off.contains(key) {
+      guard let install = installs.first, install["enabled"] as? Bool != false, let path = install["installPath"] as? String
+      else { continue }
+      let root = URL(fileURLWithPath: path)
+      guard let manifest = [".qoder-plugin/plugin.json", "plugin.json"].lazy.compactMap({ json(root.appendingPathComponent($0)) }).first,
+        let name = manifest["name"] as? String, !name.isEmpty
+      else { continue }
+      let skills = root.appendingPathComponent(manifest["skills"] as? String ?? "skills")
+      var commands: [Skill] = []
+      if let map = manifest["commands"] as? [String: Any] {
+        for (command, entry) in map.sorted(by: { $0.key < $1.key }) {
+          let entry = entry as? [String: Any]
+          let text = (entry?["source"] as? String).flatMap { try? String(contentsOf: root.appendingPathComponent($0), encoding: .utf8) }
+          let description = entry?["description"] as? String ?? text.flatMap { frontmatter($0)["description"] ?? firstLine($0) }
+          commands.append(Skill(name: named(command, name), description: description, scope: .plugin, plugin: name))
+        }
+      } else {
+        commands = scanCommands(root.appendingPathComponent(manifest["commands"] as? String ?? "commands"), scope: .plugin, prefix: name)
+      }
+      result.append((name, skills, commands))
+    }
+    return result
   }
 
   /// Antigravity plugins in `<root>/plugins/<dir>` that are on, as (name, directory): a

@@ -5,9 +5,14 @@ enum SkillAgent: String {
   case claudeCode = "claude-code"
   case codex
   case antigravity
+  case qoder
 
   /// What goes before a skill's name: Codex mentions skills as `$name`, the others run `/name`.
   var sigil: String { self == .codex ? "$" : "/" }
+
+  /// Whether a skill sent while the agent works waits for its turn. Qoder 1.1.78 refuses: "Slash
+  /// commands cannot be queued", and the line stays at its prompt.
+  var queues: Bool { self != .qoder }
 }
 
 /// A skill or slash command an agent offers in a pane, as the Mac finds it on disk.
@@ -66,14 +71,15 @@ struct SkillRequest: Codable {
 }
 
 enum SkillError: LocalizedError, Equatable {
-  case invalid, unknown(String), busy, unsupported
+  case invalid, unknown(String), busy, working, unsupported
 
   var errorDescription: String? {
     switch self {
     case .invalid: "Arguments must be one short line."
     case .unknown(let command): "The agent doesn't offer \(command) in that pane."
     case .busy: "The agent is waiting on a question or a permission in that pane; answer it first."
-    case .unsupported: "That pane isn't running Claude Code, Codex or Antigravity on this Mac's Rex."
+    case .working: "The agent can't queue skills; send it when the agent is done."
+    case .unsupported: "That pane isn't running Claude Code, Codex, Antigravity or Qoder on this Mac's Rex."
     }
   }
 }
@@ -82,7 +88,10 @@ extension Row {
   /// The agent in the pane, when it's one Rex Radar can send skills to.
   var skillAgent: SkillAgent? { pane.app.flatMap(SkillAgent.init(rawValue:)) }
 
-  /// Claude Code, Codex or Antigravity on the Mac's own Rex server (its skills are on that Mac's
-  /// disk), not stuck on a prompt that typing would answer.
-  var takesSkills: Bool { skillAgent != nil && server == nil && !stale && state != .blocked }
+  /// Claude Code, Codex, Antigravity or Qoder on the Mac's own Rex server (its skills are on that
+  /// Mac's disk), not stuck on a prompt that typing would answer, nor working when it can't queue.
+  var takesSkills: Bool {
+    guard let agent = skillAgent else { return false }
+    return server == nil && !stale && state != .blocked && (agent.queues || state != .working)
+  }
 }

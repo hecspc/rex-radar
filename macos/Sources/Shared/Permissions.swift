@@ -8,12 +8,14 @@ struct PendingPermission: Codable, Hashable {
   var prompt: String
 
   /// Agents whose permission prompt was checked to take "1" for "Yes" (once) and Esc for no:
-  /// Claude Code 2.1.310, Codex 0.164.0 and Antigravity 1.4.7, on 2026-10-25.
-  static let apps: Set<String> = ["claude-code", "codex", "antigravity"]
+  /// Claude Code 2.1.310, Codex 0.164.0, Antigravity 1.4.7 and Qoder 1.1.78, on 2026-10-25.
+  static let apps: Set<String> = ["claude-code", "codex", "antigravity", "qoder"]
 
-  /// The first option, "1. Yes…", behind the agent's selection mark (❯, › or >).
+  /// The first option, "1. Yes…" (Qoder: "1. Allow once"), behind the agent's selection mark
+  /// (❯, › or >).
   private static func isAllowOption(_ line: some StringProtocol) -> Bool {
-    line.drop { " ❯›>".contains($0) }.hasPrefix("1. Yes")
+    let option = line.drop { " ❯›>".contains($0) }
+    return option.hasPrefix("1. Yes") || option.hasPrefix("1. Allow once")
   }
 
   /// Whether the screen shows a permission prompt's options.

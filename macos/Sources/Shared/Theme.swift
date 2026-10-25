@@ -37,6 +37,14 @@ extension Row {
     else { return nil }
     // Claude and Codex put a spinner, ✳ or "[ ! ]" in front of the topic.
     let trimmed = String(title.drop { !$0.isLetter && !$0.isNumber })
+    if pane.app == "qoder" {
+      // Qoder titles read "◇ <topic> | Ready" (or "| Working"), and "Qoder CLI | Ready" before
+      // the first prompt.
+      var parts = trimmed.components(separatedBy: " | ")
+      if parts.count > 1 { parts.removeLast() }
+      let topic = parts.joined(separator: " | ")
+      return topic.isEmpty || topic == "Qoder CLI" ? nil : topic
+    }
     guard pane.app == "codex" else { return trimmed.isEmpty ? nil : trimmed }
     // Codex titles read "[Action Required | ]<topic> | <project>", and just
     // "<project>" before the first prompt; the tab already says the project.
@@ -63,6 +71,7 @@ extension Row {
     case "claude-code": "AgentClaudeCode"
     case "codex": "AgentCodex"
     case "antigravity": "AgentAntigravity"
+    case "qoder": "AgentQoder"
     default: nil
     }
   }
@@ -74,6 +83,7 @@ extension Row {
     case "claude-code": "asterisk"
     case "codex": "curlybraces"
     case "antigravity": "arrow.up.circle"
+    case "qoder": "q.circle"
     default: "cpu"
     }
   }
@@ -83,6 +93,7 @@ extension Row {
     case "claude-code": Color(red: 0.85, green: 0.47, blue: 0.34)
     case "codex": Color(red: 0.16, green: 0.70, blue: 0.64)
     case "antigravity": Color(red: 0.26, green: 0.52, blue: 0.96)
+    case "qoder": Color(red: 0.16, green: 0.78, blue: 0.47)
     default: .secondary
     }
   }
@@ -95,6 +106,7 @@ extension Pane {
     case "claude-code": "Claude Code"
     case "codex": "Codex"
     case "antigravity": "Antigravity"
+    case "qoder": "Qoder"
     case let app?: app
     case nil: "Agent"
     }

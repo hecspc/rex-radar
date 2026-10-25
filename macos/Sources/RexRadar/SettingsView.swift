@@ -118,9 +118,9 @@ struct SettingsView: View {
         Text("Questions")
       } footer: {
         Text(
-          "Answering types into the agent's pane in Rex (Claude Code, Codex or Antigravity on this Mac). Rex Radar "
-            + "only types for a pane that's showing the question list, only option numbers, Tab, arrows, Enter and one "
-            + "short line, and checks the form before typing and Claude's review before submitting.")
+          "Answering types into the agent's pane in Rex (Claude Code, Codex, Antigravity or Qoder on this Mac). Rex "
+            + "Radar only types for a pane that's showing the question list, only option numbers, Tab, arrows, Enter and "
+            + "one short line, and checks the form before typing and the agent's review before submitting.")
       }
 
       Section {
@@ -130,7 +130,8 @@ struct SettingsView: View {
       } footer: {
         Text(
           "Allowing presses 1 (Yes, this once) and denying presses Esc in the agent's pane in Rex, for Claude Code, "
-            + "Codex and Antigravity. Rex Radar only presses them while the agent still asks what the phone showed.")
+            + "Codex, Antigravity and Qoder. Rex Radar only presses them while the agent still asks what the phone "
+            + "showed.")
       }
 
       Section {
@@ -139,9 +140,10 @@ struct SettingsView: View {
         Text("Skills")
       } footer: {
         Text(
-          "Sending types the skill and its arguments into the agent's pane in Rex (/skill for Claude Code and "
-            + "Antigravity, $skill for Codex), then submits it. Rex Radar only sends skills the agent offers in that "
-            + "pane, one line, and never while the agent waits on a question or a permission.")
+          "Sending types the skill and its arguments into the agent's pane in Rex (/skill for Claude Code, "
+            + "Antigravity and Qoder, $skill for Codex), then submits it. Rex Radar only sends skills the agent offers "
+            + "in that pane, one line, and never while the agent waits on a question or a permission, nor while Qoder "
+            + "works, since it can't queue them.")
       }
 
       Section {

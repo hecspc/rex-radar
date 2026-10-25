@@ -263,8 +263,8 @@ final class HubClient {
 
   // MARK: Skills
 
-  /// Whether a skill can be sent to this agent from here: Claude Code, Codex or Antigravity on its
-  /// Mac's own Rex, and that Mac allows it.
+  /// Whether a skill can be sent to this agent from here: Claude Code, Codex, Antigravity or Qoder
+  /// on its Mac's own Rex, and that Mac allows it.
   func canSendSkill(_ agent: Agent) -> Bool { agent.row.takesSkills && (skillsByHub[agent.hubID] ?? false) }
 
   /// The skills the agent offers in its pane, as its Mac reads them.

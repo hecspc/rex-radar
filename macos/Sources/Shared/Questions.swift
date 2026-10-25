@@ -1,7 +1,7 @@
 import Foundation
 
-/// The question list an agent is asking in a pane: Claude Code's AskUserQuestion (as the
-/// hooks/claude-rex-questions hook saves it), Codex's request_user_input or Antigravity's
+/// The question list an agent is asking in a pane: Claude Code's or Qoder's AskUserQuestion (as
+/// the hooks/claude-rex-questions hook saves it), Codex's request_user_input or Antigravity's
 /// ask_question (both read from the agent's own records on the Mac).
 struct PendingQuestions: Codable, Hashable {
   var toolUseId: String?
@@ -11,8 +11,12 @@ struct PendingQuestions: Codable, Hashable {
   var app: String?
 
   /// Agents whose question forms were checked to take the keys Rex.answer types: Claude Code
-  /// 2.1.310, Codex 0.164.0 and Antigravity 1.4.7, on 2026-10-25.
-  static let apps: Set<String> = ["claude-code", "codex", "antigravity"]
+  /// 2.1.310, Codex 0.164.0, Antigravity 1.4.7 and Qoder 1.1.78, on 2026-10-25.
+  static let apps: Set<String> = ["claude-code", "codex", "antigravity", "qoder"]
+
+  /// Agents whose question lists come from the hooks/claude-rex-questions hook file: Qoder runs
+  /// Claude Code's hooks with the same AskUserQuestion input.
+  static let hookApps: Set<String> = ["claude-code", "qoder"]
 
   var agentName: String { Pane.appLabel(app ?? "claude-code") }
 }
@@ -55,7 +59,7 @@ enum AnswerError: LocalizedError, Equatable {
     case .invalid(let why): "Invalid answer: \(why)"
     case .notWaiting: "That pane isn't asking these questions anymore."
     case .notAtStart: "The form in Rex has moved on from the first question; finish it there."
-    case .reviewMismatch(let what): "Claude's review didn't match (\(what)); left it open in Rex for you."
+    case .reviewMismatch(let what): "The agent's review didn't match (\(what)); left it open in Rex for you."
     case .stillWaiting: "The agent still shows the questions; check the pane in Rex."
     }
   }
