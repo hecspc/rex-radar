@@ -49,6 +49,8 @@ struct MenuBarLabel: View {
 
 /// Starts the hub for iPhone and iPad; widget taps arrive as rexradar:// URLs.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+  private var sigterm: DispatchSourceSignal?
+
   func applicationDidFinishLaunching(_ notification: Notification) {
     // The --render and --answer test modes run beside the real app: no watchers, no hub.
     guard Render.directory == nil, AnswerCommand.arguments == nil else { return }
@@ -56,12 +58,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       HubServer.shared.start()
       Watchers.shared.startAll()
     }
+    // `kill` and logout send SIGTERM, which skips applicationWillTerminate: quit properly instead.
+    signal(SIGTERM, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+    source.setEventHandler { NSApp.terminate(nil) }
+    source.resume()
+    sigterm = source
     // Start at login, so the watchers and the hub are always running. Once only: if you turn it
     // off in System Settings → General → Login Items, it stays off.
     if !UserDefaults.standard.bool(forKey: "loginItemRegistered") {
       try? SMAppService.mainApp.register()
       UserDefaults.standard.set(true, forKey: "loginItemRegistered")
     }
+  }
+
+  func applicationWillTerminate(_ notification: Notification) {
+    MainActor.assumeIsolated { Watchers.shared.stopAll() }
   }
 
   func application(_ application: NSApplication, open urls: [URL]) {

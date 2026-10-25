@@ -46,7 +46,24 @@ final class Watchers: ObservableObject {
     return FileManager.default.fileExists(atPath: dev.path) ? dev : nil
   }
 
-  func startAll() { servers.forEach(start) }
+  func startAll() {
+    Self.stopStrays()
+    servers.forEach(start)
+  }
+
+  /// Stops every watcher, when the app quits: they're separate processes and would outlive it.
+  func stopAll() { servers.forEach(stop) }
+
+  /// Watchers a previous run left behind (it crashed or was killed outright) still write snapshots,
+  /// so they'd look alive and run twice next to ours: stop any that write to our directory.
+  private static func stopStrays() {
+    let out = NSRegularExpression.escapedPattern(for: Store.shared.directory.path)
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+    process.arguments = ["-f", "rex-radar\\.lua --all source=[^ ]+ out=\(out)( |$)"]
+    guard (try? process.run()) != nil else { return }
+    process.waitUntilExit()
+  }
 
   func add(name: String, address: String?) {
     let name = name.trimmingCharacters(in: .whitespaces)
