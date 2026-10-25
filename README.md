@@ -1,9 +1,87 @@
-# rex-radar
+# Rex Radar
 
-A glanceable view of the coding agents running in [Rex](https://www.superlogical.com/rex) sessions, across
-several Rex servers, for iOS and macOS. Tap an agent to jump to its tab, in the Rex app you're meant to use.
+A glanceable view of the coding agents running in [Rex](https://www.superlogical.com/rex) terminal sessions,
+across several Rex servers: a macOS menu bar app and desktop widget, an iPhone and iPad app with widgets, and an
+Apple Watch app with complications. See which agent is blocked, done or working, jump to its pane in Rex, answer
+Claude's questions and send it skills, from wherever you are.
 
-> Status: prototype backend (watcher + CLI). Rex is in beta and its API changes weekly.
+> A community project, not affiliated with Superlogical. Rex is in beta and its API changes weekly, so things
+> can break with a Rex update; what's been verified, and on which builds, is noted below.
+
+## Features
+
+- **Every agent at a glance**, most urgent first: blocked, error, done, working, idle; with Claude's one-line
+  summary and conversation topic.
+- **Open in Rex**: click or tap an agent to switch your Mac's Rex app to its pane, on any of your Rex servers.
+- **Answer Claude's questions** (its AskUserQuestion forms) from the Mac, iPhone, iPad or watch.
+- **Send skills**: pick any skill or slash command Claude offers in a pane (project, user and plugin), filtered as
+  you type, and send it with arguments.
+- **Widgets and complications** on the Mac desktop, Home and Lock Screen, and the watch face.
+
+## Requirements
+
+- Rex (beta) on a Mac running macOS 26, with **Remote Control** on in the Rex app's settings.
+- Claude Code 2.1.310 or later, which reports its status to Rex. Other agents show up if they report
+  [program status](https://www.superlogical.com/rex/docs/build/program-status).
+- To build: Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+  For the widgets, the iOS app and the watch app, an Apple Development team (a free Personal Team works for your
+  own devices).
+- iOS/iPadOS 17 and watchOS 10 or later for the mobile apps.
+
+## Getting started
+
+There are no prebuilt releases yet: build it from source.
+
+```sh
+git clone https://github.com/hecspc/rex-radar && cd rex-radar/macos
+
+# Mac app only (command-line tools, ad-hoc signed, no widget)
+./bundle.sh --install
+
+# Mac app and desktop widget, signed with your team
+DEVELOPMENT_TEAM=<team id> BUNDLE_PREFIX=com.yourname scripts/build.sh --install
+```
+
+- Your team ID is the `OU` of your Apple Development certificate
+  (`security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject`).
+- `BUNDLE_PREFIX` is the reverse-DNS prefix for every bundle ID and App Group. Bundle IDs belong to one team, so
+  use your own (the default, `house.milapan`, only signs for the author).
+- The app starts a watcher for this Mac's Rex server on launch. Add remote Rex servers in the window's
+  **Manage Servers…** (they need to be hosts your Rex app is connected to).
+- To answer Claude's question lists, install the hook in `hooks/claude-rex-questions` (needs `jq`); see
+  [Answering Claude's questions](#answering-claudes-questions).
+
+**iPhone, iPad and Apple Watch**: generate the project and build the `RexRadarMobile` scheme (the watch app is
+embedded) to your device:
+
+```sh
+cd macos && xcodegen generate
+xcodebuild -project RexRadar.xcodeproj -scheme RexRadarMobile -destination 'id=<device udid>' \
+  -allowProvisioningUpdates DEVELOPMENT_TEAM=<team id> BUNDLE_PREFIX=com.yourname build
+```
+
+Or open `RexRadar.xcodeproj` in Xcode and run it there. Then pair: on the Mac open Rex Radar's window →
+**iPhone & iPad** and scan the QR code with the iPhone's Camera. The watch gets its pairing from the phone.
+
+### Security
+
+The Mac app serves its agents to your phone over plain HTTP on port 7298, with a random bearer token from the
+pairing code. Anyone with the token can see your agents and open panes; answering questions and sending skills
+are off until you turn them on in Settings. Use it on a network you trust, ideally over
+[Tailscale](https://tailscale.com), which encrypts it and lets the phone reach the Mac from anywhere.
+
+## Contributing
+
+Issues and pull requests are welcome. `CLAUDE.md` describes the architecture and conventions (it's written for
+Claude Code, and works as well for people). There are no tests: say in a pull request how you checked the change,
+and on which Rex and Claude Code builds. When Rex behaviour changes, record what you verified, with the date and
+versions, in this README.
+
+## License
+
+[MIT](LICENSE)
+
+# Design notes
 
 ## What it shows
 
@@ -28,7 +106,7 @@ sit in front of.
 
 On iOS rex-radar is a remote control: it shows everything and sends you to your desk.
 
-## How it would work
+## How it works
 
 ### Data: all from the Rex server API
 
@@ -61,8 +139,9 @@ rex -S <server> -C <client> do session.select session_id=<session> window_id=<ta
 
 Rex trusts callers by how they connect. The only safe remote access today is **Tailscale**: a server started with
 `rex server start --tailscale`, or Tailscale Serve or a tailnet address on Linux. Any connection gets full control
-of that server ([Remote Access](https://www.superlogical.com/rex/docs/linux/remote-access)). rex-radar should only
-read, plus `session.select`.
+of that server ([Remote Access](https://www.superlogical.com/rex/docs/linux/remote-access)). Rex Radar reads,
+selects panes, and types into one only to answer a question or send a skill you chose, each behind a setting
+for phones.
 
 ## Prototype
 
@@ -76,7 +155,7 @@ rex -S build do watcher/rex-radar.lua --all source=build server=build
 bin/rex-radar                         # every agent pane, most urgent first
 bin/rex-radar --json                  # the same as JSON
 bin/rex-radar open 2                  # show row 2 in the server's Rex apps
-bin/rex-radar open 2 --client vv-macbook   # only in the app labelled vv-macbook (the main Mac)
+bin/rex-radar open 2 --client my-mac   # only in the app labelled my-mac (the main Mac)
 ```
 
 ```
@@ -213,16 +292,6 @@ optional arguments.
   on tap, for one host at a time. What rex-radar adds: several servers in one view, main-server routing, and the
   summary up front.
 - **Auth.** Until Rex has its own authentication, everything rides on Tailscale ACLs.
-
-## Plan
-
-1. Use Rex's own iOS app and Activity view for a while with Claude Code ≥ 2.1.310, and note which gaps hurt.
-2. Prototype the backend: one Lua watcher per server (`rex -S <server> do watcher.lua --all`, as
-   [cheap-rex-display](https://github.com/yethranayeh/cheap-rex-display) does), publishing pane state to a small
-   local service.
-3. A SwiftUI menu-bar app on macOS reading that service, with tap → `session.select`.
-4. iOS: the same UI against the service over Tailscale, routing every tap to the main server's app.
-5. Summaries beyond the status `msg`, if they're still missing.
 
 ## Related
 
