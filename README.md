@@ -9,12 +9,17 @@ Claude's questions and send it skills, from wherever you are.
 > can break with a Rex update; what's been verified, and on which builds, is noted below.
 
 <p align="center">
+  <img src="docs/screenshots/mac-panel.png" alt="The menu bar panel on macOS: the most urgent agent, then the others per Rex server" width="300">
+  <img src="docs/screenshots/mac-window.png" alt="The Rex Radar window on macOS: a card per agent" width="520">
+</p>
+<p align="center">
   <img src="docs/screenshots/ipad.png" alt="Rex Radar on iPad: a sidebar of Rex servers beside agent cards" width="720">
 </p>
 <p align="center">
-  <img src="docs/screenshots/iphone-agents.png" alt="Agents on iPhone, most urgent first" width="240">
-  <img src="docs/screenshots/iphone-answer.png" alt="Answering Claude's question list from the iPhone" width="240">
-  <img src="docs/screenshots/iphone-skills.png" alt="Picking a skill to send to Claude" width="240">
+  <img src="docs/screenshots/iphone-agents.png" alt="Agents on iPhone, most urgent first" width="200">
+  <img src="docs/screenshots/iphone-answer.png" alt="Answering Claude's question list from the iPhone" width="200">
+  <img src="docs/screenshots/iphone-skills.png" alt="Picking a skill to send to Claude" width="200">
+  <img src="docs/screenshots/watch.png" alt="Agents on Apple Watch" width="160">
 </p>
 
 ## Features
