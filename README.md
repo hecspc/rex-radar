@@ -102,8 +102,8 @@ DEVELOPMENT_TEAM=<team id> macos/scripts/build.sh --install   # app + widget, Xc
 macos/bundle.sh --install                                     # app only, command-line tools, ad-hoc signed
 ```
 
-- **Menu bar**: Rex's own dino (loaded from the installed Rex app at run time) over a round radar; a blip and a
-  count when agents want you.
+- **Menu bar**: the app icon's dino and radar as a one-ink template glyph (`MenuIcon.swift`); a blip and a count
+  when agents want you.
 - **Panel** (Liquid Glass): the most urgent agent as a card with **Open in Rex**, the others in a card per server.
 - **Window**: a server sidebar and a card per agent.
 - **Widget** (small, medium, large): agents by urgency; tap one to open it in Rex (`rexradar://open?id=…`).
