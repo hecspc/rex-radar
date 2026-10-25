@@ -40,8 +40,13 @@ extension Row {
     return trimmed.isEmpty ? nil : String(trimmed)
   }
 
+  /// Tab, plus the pane's own label when it has one, so helpers sharing an
+  /// `agents` tab can be told apart. Rex's default label "shell" says nothing.
   var tabLabel: String {
-    [pane.tabIndex.map { "\($0)." }, pane.tab].compactMap { $0 }.joined(separator: " ")
+    let tab = [pane.tabIndex.map { "\($0)." }, pane.tab].compactMap { $0 }.joined(separator: " ")
+    guard let label = pane.pane?.trimmingCharacters(in: .whitespaces), !label.isEmpty, label != "shell"
+    else { return tab }
+    return tab.isEmpty ? label : "\(tab) › \(label)"
   }
 
   var appLabel: String {

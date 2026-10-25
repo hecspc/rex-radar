@@ -104,6 +104,8 @@ A sidebar like Rex's own: servers → sessions → tabs → panes. Each pane run
 - **State**: idle, working, blocked (permission, question or auth), done or error.
 - **Summary**: one line about what the agent did or needs.
 - **Unread**: done or blocked since you last looked.
+- **Where**: session, tab, and the pane's label when it has one other than Rex's default `shell`
+  (`2. agents › reviewer`), so several helpers in one tab stay distinguishable.
 
 Ordered by urgency: blocked first, then done-unseen, then working.
 
