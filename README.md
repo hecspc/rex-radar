@@ -312,14 +312,23 @@ reuses the iOS `HubClient`, like the watch. Skills aren't offered.
   Devices page, and the grid showed the Mac's agents.
 - **A real Apple TV**: pair it in Xcode's Device Hub (TV: Settings → Remotes and Devices → Remote App and
   Devices), then build for it with `-allowProvisioningUpdates -allowProvisioningDeviceRegistration
-  DEVELOPMENT_TEAM=<team>` and install with `xcrun devicectl device install app`. Xcode's development connection
-  needs the Mac and the TV on the same network segment: with the TV on another VLAN, Device Hub paired but showed
-  it as unavailable. Pair the app itself with the Mac back on its usual network, because it saves the Mac's IPv4
-  address. At run time the TV only needs TCP 7298 to the Mac and Bonjour reflected (Avahi) across the VLANs.
+  DEVELOPMENT_TEAM=<team>` and install with `xcrun devicectl device install app`. At run time the TV only needs
+  TCP 7298 to the Mac and Bonjour reflected (Avahi) across the VLANs. Pair the app itself with the Mac on its
+  usual network, because it saves the Mac's IPv4 address.
   Verified 2026-10-25 on an Apple TV 4K (2nd generation), tvOS 27.0, on a different VLAN from the Mac.
   The same day it answered a two-question list whose first question Claude had wrapped over five lines.
   The pane check compares the screen without line breaks or the `│` border, because the wrapped question
   never matched as one line and the Mac refused the answer.
+- **Installing on a TV on another VLAN**: Device Hub pairs, but shows the TV as unavailable, even with the
+  firewall open both ways and Bonjour reflected. The pairing daemon checks the device with ARP before it
+  connects (`remotepairingd`: "CUNetLinkManager reported the device as unavailable using ARP"), and ARP never
+  crosses subnets. A host route through the Mac's interface makes the TV count as on-link, while the traffic
+  still goes through the router: `sudo route -n add -host <tv address> -interface en0`. To keep it across reboots
+  and network changes, `sudo macos/scripts/device-route.sh install <tv address> en0 <start of the Mac's address,
+  e.g. 10.0.10.>` installs a launch daemon that adds the route while the Mac is on that network and removes it
+  elsewhere (`uninstall` removes it; `check` shows what it would do). Proxy ARP on the router isn't needed: the
+  route alone passed the check with it off. Verified 2026-10-25 with Xcode 27 and tvOS 27.0, the TV on
+  `10.0.50.0/24` and the Mac on `10.0.10.0/24`.
 
 ### Answering questions
 

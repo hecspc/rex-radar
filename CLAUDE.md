@@ -19,6 +19,7 @@ macos/bundle.sh [--install]                                    # Mac app only vi
 - Simulator pairing without the URL prompt: `SIMCTL_CHILD_REXRADAR_PAIR='rexradar://pair?…' xcrun simctl launch <sim> house.milapan.rex-radar.ios`.
 - There are no tests. To answer a question list without the UI, run `RexRadar --answer <block id> '<answers json>'` (`AnswerCommand.swift`). The prototype CLI is `bin/rex-radar [--json] | open <n>`.
 - tvOS: `xcodebuild -project RexRadar.xcodeproj -scheme RexRadarTV -destination 'generic/platform=tvOS Simulator' …`. Its icon is a separate catalog (`Resources/TVAssets.xcassets`), drawn by `scripts/make-icon.swift`.
+- A real Apple TV on another VLAN shows as unavailable to Xcode, because its pairing daemon checks ARP. `macos/scripts/device-route.sh` keeps a host route that fixes it. See README "Installing on a TV on another VLAN".
 - Deployment targets: macOS 26, iOS 17, watchOS 10, tvOS 17. Swift 6 with `SWIFT_STRICT_CONCURRENCY: minimal`. Liquid Glass applies only on 26+, with a frosted material fallback before that (`Shared/Glass.swift`).
 - `macos/.build/` (SwiftPM) and `macos/build/` (Xcode) hold thousands of generated files, so exclude them from `find`/`grep` (`-path '*/.build' -prune`).
 
