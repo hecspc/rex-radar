@@ -286,7 +286,17 @@ reuses the iOS `HubClient`, like the watch. Skills aren't offered.
   Build it signed (ad hoc is enough, `CODE_SIGN_IDENTITY=-`): with `CODE_SIGNING_ALLOWED=NO` the app can't write
   to the Keychain, so it pairs but every request then gets a 401.
 - Verified 2026-10-25 in the Apple TV 4K simulator (Xcode 27): Bonjour found the Mac, it was allowed on the Mac's
-  Devices page, and the grid showed the Mac's agents. Not yet on a real Apple TV.
+  Devices page, and the grid showed the Mac's agents.
+- **A real Apple TV**: pair it in Xcode's Device Hub (TV: Settings → Remotes and Devices → Remote App and
+  Devices), then build for it with `-allowProvisioningUpdates -allowProvisioningDeviceRegistration
+  DEVELOPMENT_TEAM=<team>` and install with `xcrun devicectl device install app`. Xcode's development connection
+  needs the Mac and the TV on the same network segment: with the TV on another VLAN, Device Hub paired but showed
+  it as unavailable. Pair the app itself with the Mac back on its usual network, because it saves the Mac's IPv4
+  address. At run time the TV only needs TCP 7298 to the Mac and Bonjour reflected (Avahi) across the VLANs.
+  Verified 2026-10-25 on an Apple TV 4K (2nd generation), tvOS 27.0, on a different VLAN from the Mac.
+  The same day it answered a two-question list whose first question Claude had wrapped over five lines.
+  The pane check compares the screen without line breaks or the `│` border, because the wrapped question
+  never matched as one line and the Mac refused the answer.
 
 ### Answering Claude's questions
 

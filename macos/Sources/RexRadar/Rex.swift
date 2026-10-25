@@ -94,6 +94,13 @@ enum Rex {
     return String(decoding: out, as: UTF8.self)
   }
 
+  /// Whether the screen shows the text, though Claude wraps a long question over several lines,
+  /// each starting with "│ ": compares with whitespace and the box border left out.
+  static func shows(_ screen: String, _ text: String) -> Bool {
+    func squeezed(_ s: String) -> String { String(s.unicodeScalars.filter { !CharacterSet.whitespacesAndNewlines.contains($0) && $0 != "│" }) }
+    return squeezed(screen).contains(squeezed(text))
+  }
+
   /// Whether Rex says the pane's program waits on a question (OSC 7501 blocked, kind question).
   static func waitsOnQuestion(_ row: Row) throws -> Bool {
     let status = try call(
@@ -123,7 +130,7 @@ enum Rex {
     let qs = questions.questions
     guard let first = qs.first else { throw AnswerError.notWaiting }
     // Still asking the same thing? Rex must say it waits on a question, and the screen must show it.
-    guard try waitsOnQuestion(row), try screen(row).contains(first.question) else { throw AnswerError.notWaiting }
+    guard try waitsOnQuestion(row), try shows(screen(row), first.question) else { throw AnswerError.notWaiting }
 
     for (q, a) in zip(qs, answers) {
       if let text = a.text {
@@ -148,7 +155,7 @@ enum Rex {
     let review = try screen(row)
     guard review.contains("Review your answers") else { throw AnswerError.reviewMismatch("no review screen") }
     for (q, expected) in zip(qs, questions.reviewLines(answers)) {
-      guard review.contains("→ " + expected) else { throw AnswerError.reviewMismatch("\(q.header ?? q.question): \(expected)") }
+      guard shows(review, "→ " + expected) else { throw AnswerError.reviewMismatch("\(q.header ?? q.question): \(expected)") }
     }
     try key(row, "1")
   }
