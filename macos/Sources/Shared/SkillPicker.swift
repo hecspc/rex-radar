@@ -11,11 +11,13 @@ final class SkillPickerModel: ObservableObject {
   @Published var sending = false
 }
 
-/// Picks one of the skills Claude offers in a pane, filtered as you type, grouped by where it
+/// Picks one of the skills an agent offers in a pane, filtered as you type, grouped by where it
 /// comes from; then takes optional arguments and sends it.
 struct SkillPicker: View {
   let load: () async throws -> [Skill]
   let send: (SkillRequest) async throws -> Void
+  /// Who gets it, on the Send button: "Claude Code", "Codex".
+  let agentName: String
   var cancel: (() -> Void)?
   /// The list's height where nothing else sizes it (the menu bar panel); nil fills the space.
   var listHeight: CGFloat?
@@ -135,7 +137,7 @@ struct SkillPicker: View {
   private func detail(_ skill: Skill) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
-        Text("/" + skill.name).font(.headline.monospaced()).lineLimit(2)
+        Text(skill.command).font(.headline.monospaced()).lineLimit(2)
         Text(skill.scope == .plugin ? "Plugin \(skill.plugin ?? "")" : skill.scope.title)
           .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
         if let d = skill.description {
@@ -156,7 +158,7 @@ struct SkillPicker: View {
           .glassButtonStyle()
         Spacer()
         Button { submit(skill) } label: {
-          if model.sending { ProgressView().controlSize(.small) } else { Label("Send to Claude", systemImage: "paperplane.fill") }
+          if model.sending { ProgressView().controlSize(.small) } else { Label("Send to \(agentName)", systemImage: "paperplane.fill") }
         }
         .glassProminentButtonStyle()
         .disabled(model.sending)
@@ -178,13 +180,13 @@ struct SkillPicker: View {
   }
 }
 
-/// A skill as a list row: its slash name, then what it does.
+/// A skill as a list row: what you'd type, then what it does.
 struct SkillRow: View {
   let skill: Skill
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
-      Text("/" + skill.name).font(.callout.monospaced().weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+      Text(skill.command).font(.callout.monospaced().weight(.medium)).foregroundStyle(.primary).lineLimit(1)
       if let d = skill.description {
         Text(d).font(.caption).foregroundStyle(.secondary).lineLimit(2)
       }

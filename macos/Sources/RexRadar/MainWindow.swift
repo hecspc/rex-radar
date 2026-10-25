@@ -64,7 +64,7 @@ struct MainWindow: View {
           Text(row.tabLabel).foregroundStyle(.secondary)
           SkillPicker(
             load: { try await store.skills(for: row) }, send: { try await store.sendSkill(row, $0) },
-            cancel: { store.picking = nil })
+            agentName: row.appLabel, cancel: { store.picking = nil })
         }
         .padding(24)
         .frame(width: 520, height: 600)

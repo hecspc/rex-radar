@@ -1,8 +1,9 @@
 import Foundation
 
-/// The skills and commands Claude Code lists in its slash menu for a working directory, read from
-/// this Mac's disk the way Claude Code finds them (as of Claude Code 2.1.310):
+/// The skills and commands an agent lists in its menu for a working directory, read from this
+/// Mac's disk the way the agent finds them.
 ///
+/// Claude Code (as of 2.1.310), typed `/name`:
 /// - project: `.claude/skills/<name>/SKILL.md` and `.claude/commands/<name>.md` in the directory
 ///   and its parents, below the home directory; the nearest wins
 /// - user: the same under `~/.claude`
@@ -10,27 +11,83 @@ import Foundation
 ///   `~/.claude/plugins/installed_plugins.json`, as `/<plugin>:<name>`. A plugin is enabled when
 ///   `enabledPlugins` in the user or project settings says so; a managed one unless they say not.
 ///
-/// Skills with `user-invocable: false` stay out: Claude's menu hides them too.
+/// Codex (as of 0.164.0), typed `$name`:
+/// - project: `.agents/skills` and `.codex/skills` from the directory up to the repository root
+/// - user: `~/.agents/skills`, `~/.codex/skills` and its bundled `.system` skills
+/// - plugins: the newest cached version of each installed plugin,
+///   `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/skills`, as `$<plugin>:<name>`,
+///   unless `config.toml` sets `[plugins."<plugin>@<marketplace>"] enabled = false`
+///
+/// Antigravity (as of agy 1.4.7), typed `/name`:
+/// - project: `skills/` in `.agents`, `.agent`, `_agents` or `_agent` from the directory up to
+///   the repository root
+/// - user: `~/.gemini/config/skills`
+/// - plugins: `plugins/<plugin>/skills` in those same folders, as `/<plugin>:<name>`, unless
+///   `~/.gemini/config/config.json` or the plugin's manifest turns it off
+/// Its built-in skills are left out: it mounts only some of them, and nothing on disk says which.
+///
+/// Skills with `user-invocable: false` (Claude) or `disable-slash-command: true` (Antigravity)
+/// stay out: the agents' menus hide them too.
 enum SkillCatalog {
-  static func skills(cwd: String?) -> [Skill] {
-    let fm = FileManager.default
-    let home = fm.homeDirectoryForCurrentUser.standardizedFileURL
-    let claude = home.appendingPathComponent(".claude")
-    let projects = cwd.map { projectDirs(from: URL(fileURLWithPath: $0).standardizedFileURL, home: home) } ?? []
-
-    var result: [Skill] = []
+  static func skills(cwd: String?, agent: SkillAgent) -> [Skill] {
+    let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL
+    let dir = cwd.map { URL(fileURLWithPath: $0).standardizedFileURL }
+    let found: [Skill]
+    switch agent {
+    case .claudeCode: found = claude(dir, home: home)
+    case .codex: found = codex(dir, home: home)
+    case .antigravity: found = antigravity(dir, home: home)
+    }
+    // Found in priority order: the first of a name wins a clash.
     var seen = Set<String>()
-    func add(_ skills: [Skill]) {
-      for s in skills where seen.insert(s.name).inserted { result.append(s) }
-    }
-    // Nearest project directory first: it wins a clash.
-    for dir in projects { add(scan(dir.appendingPathComponent(".claude"), scope: .project, prefix: nil)) }
-    add(scan(claude, scope: .user, prefix: nil))
-    for (name, root) in enabledPlugins(claude: claude, projects: projects) {
-      add(scan(root, scope: .plugin, prefix: name))
-    }
-    return result.sorted { ($0.scope.order, $0.name) < ($1.scope.order, $1.name) }
+    return found.filter { seen.insert($0.name).inserted }
+      .map { var skill = $0; skill.sigil = agent.sigil; return skill }
+      .sorted { ($0.scope.order, $0.name) < ($1.scope.order, $1.name) }
   }
+
+  // MARK: Agents
+
+  private static func claude(_ dir: URL?, home: URL) -> [Skill] {
+    let claude = home.appendingPathComponent(".claude")
+    let projects = dir.map { projectDirs(from: $0, home: home) } ?? []
+    // Nearest project directory first.
+    var found = projects.flatMap { scan($0.appendingPathComponent(".claude"), scope: .project, prefix: nil) }
+    found += scan(claude, scope: .user, prefix: nil)
+    for (name, root) in enabledPlugins(claude: claude, projects: projects) {
+      found += scan(root, scope: .plugin, prefix: name)
+    }
+    return found
+  }
+
+  private static func codex(_ dir: URL?, home: URL) -> [Skill] {
+    let codex = home.appendingPathComponent(".codex")
+    let projects = dir.map(repoDirs) ?? []
+    var found = projects.flatMap { dir in
+      [".agents", ".codex"].flatMap { scanSkills(dir.appendingPathComponent("\($0)/skills"), scope: .project, prefix: nil) }
+    }
+    found += scanSkills(home.appendingPathComponent(".agents/skills"), scope: .user, prefix: nil)
+    found += scanSkills(codex.appendingPathComponent("skills"), scope: .user, prefix: nil)
+    found += scanSkills(codex.appendingPathComponent("skills/.system"), scope: .user, prefix: nil)
+    for (name, root) in codexPlugins(codex: codex) {
+      found += scanSkills(root.appendingPathComponent("skills"), scope: .plugin, prefix: name)
+    }
+    return found
+  }
+
+  private static func antigravity(_ dir: URL?, home: URL) -> [Skill] {
+    let config = home.appendingPathComponent(".gemini/config")
+    let projects = (dir.map(repoDirs) ?? []).flatMap { dir in
+      [".agents", ".agent", "_agents", "_agent"].map { dir.appendingPathComponent($0) }
+    }
+    var found = projects.flatMap { scanSkills($0.appendingPathComponent("skills"), scope: .project, prefix: nil) }
+    found += scanSkills(config.appendingPathComponent("skills"), scope: .user, prefix: nil)
+    for (name, root) in antigravityPlugins(roots: projects + [config], config: config) {
+      found += scanSkills(root.appendingPathComponent("skills"), scope: .plugin, prefix: name)
+    }
+    return found
+  }
+
+  // MARK: Directories
 
   /// The directory and its parents, nearest first, stopping before the home directory.
   private static func projectDirs(from dir: URL, home: URL) -> [URL] {
@@ -43,42 +100,77 @@ enum SkillCatalog {
     return dirs
   }
 
-  /// `<root>/skills/*/SKILL.md` and `<root>/commands/**/*.md` (a subfolder adds `folder:`).
-  private static func scan(_ root: URL, scope: Skill.Scope, prefix: String?) -> [Skill] {
-    let fm = FileManager.default
-    func named(_ name: String) -> String { prefix.map { "\($0):\(name)" } ?? name }
-    var found: [Skill] = []
-
-    let skills = root.appendingPathComponent("skills")
-    for dir in (try? fm.contentsOfDirectory(atPath: skills.path)) ?? [] where !dir.hasPrefix(".") {
-      let file = skills.appendingPathComponent(dir).appendingPathComponent("SKILL.md")
-      guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
-      let meta = frontmatter(text)
-      if meta["user-invocable"] == "false" { continue }
-      found.append(Skill(name: named(meta["name"] ?? dir), description: meta["description"], scope: scope, plugin: prefix))
+  /// The directory and its parents up to the repository root (the one holding `.git`), nearest
+  /// first; just the directory outside a repository.
+  private static func repoDirs(from dir: URL) -> [URL] {
+    var dirs: [URL] = []
+    var current = dir
+    while true {
+      dirs.append(current)
+      if FileManager.default.fileExists(atPath: current.appendingPathComponent(".git").path) { return dirs }
+      guard current.path != "/", current.pathComponents.count > 1 else { return [dir] }
+      current.deleteLastPathComponent()
     }
+  }
 
-    let commands = root.appendingPathComponent("commands")
-    if let walk = fm.enumerator(at: commands, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
-      for case let file as URL in walk where file.pathExtension == "md" {
-        guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
-        let relative = file.deletingPathExtension().path.dropFirst(commands.path.count + 1)
-        let meta = frontmatter(text)
-        if meta["user-invocable"] == "false" { continue }
-        found.append(
-          Skill(
-            name: named(relative.replacingOccurrences(of: "/", with: ":")),
-            description: meta["description"] ?? firstLine(text), scope: scope, plugin: prefix))
-      }
+  /// The visible entries of a directory, sorted.
+  private static func entries(_ dir: URL) -> [String] {
+    ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
+  }
+
+  private static func json(_ file: URL) -> [String: Any]? {
+    (try? Data(contentsOf: file)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+  }
+
+  // MARK: Scanning
+
+  /// `<root>/skills/*/SKILL.md` and `<root>/commands/**/*.md`.
+  private static func scan(_ root: URL, scope: Skill.Scope, prefix: String?) -> [Skill] {
+    scanSkills(root.appendingPathComponent("skills"), scope: scope, prefix: prefix)
+      + scanCommands(root.appendingPathComponent("commands"), scope: scope, prefix: prefix)
+  }
+
+  /// `<dir>/*/SKILL.md`.
+  private static func scanSkills(_ dir: URL, scope: Skill.Scope, prefix: String?) -> [Skill] {
+    entries(dir).compactMap { name in
+      let file = dir.appendingPathComponent(name).appendingPathComponent("SKILL.md")
+      guard let text = try? String(contentsOf: file, encoding: .utf8) else { return nil }
+      let meta = frontmatter(text)
+      guard !hidden(meta) else { return nil }
+      return Skill(name: named(meta["name"] ?? name, prefix), description: meta["description"], scope: scope, plugin: prefix)
+    }
+  }
+
+  /// `<dir>/**/*.md` (a subfolder adds `folder:`).
+  private static func scanCommands(_ dir: URL, scope: Skill.Scope, prefix: String?) -> [Skill] {
+    guard let walk = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+    else { return [] }
+    var found: [Skill] = []
+    for case let file as URL in walk where file.pathExtension == "md" {
+      guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+      let relative = file.deletingPathExtension().path.dropFirst(dir.path.count + 1)
+      let meta = frontmatter(text)
+      if hidden(meta) { continue }
+      found.append(
+        Skill(
+          name: named(relative.replacingOccurrences(of: "/", with: ":"), prefix),
+          description: meta["description"] ?? firstLine(text), scope: scope, plugin: prefix))
     }
     return found
   }
 
-  /// Enabled plugins as (name, install directory), from the installed list and the settings.
+  private static func named(_ name: String, _ prefix: String?) -> String { prefix.map { "\($0):\(name)" } ?? name }
+
+  private static func hidden(_ meta: [String: String]) -> Bool {
+    meta["user-invocable"] == "false" || meta["disable-slash-command"] == "true"
+  }
+
+  // MARK: Plugins
+
+  /// Enabled Claude plugins as (name, install directory), from the installed list and the settings.
   private static func enabledPlugins(claude: URL, projects: [URL]) -> [(String, URL)] {
-    guard let data = try? Data(contentsOf: claude.appendingPathComponent("plugins/installed_plugins.json")),
-      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let plugins = json["plugins"] as? [String: [[String: Any]]]
+    guard let installed = json(claude.appendingPathComponent("plugins/installed_plugins.json")),
+      let plugins = installed["plugins"] as? [String: [[String: Any]]]
     else { return [] }
 
     // User settings, then project settings from the outermost directory in: later ones win.
@@ -88,10 +180,7 @@ enum SkillCatalog {
         ["settings.json", "settings.local.json"].map { dir.appendingPathComponent(".claude/\($0)") }
       }
     for file in settings {
-      guard let data = try? Data(contentsOf: file),
-        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-        let flags = json["enabledPlugins"] as? [String: Bool]
-      else { continue }
+      guard let flags = json(file)?["enabledPlugins"] as? [String: Bool] else { continue }
       enabled.merge(flags) { $1 }
     }
 
@@ -101,13 +190,71 @@ enum SkillCatalog {
       let on = enabled[key] ?? (install["scope"] as? String == "managed")
       guard on else { continue }
       let root = URL(fileURLWithPath: path)
-      let manifest = (try? Data(contentsOf: root.appendingPathComponent(".claude-plugin/plugin.json")))
-        .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+      let manifest = json(root.appendingPathComponent(".claude-plugin/plugin.json"))
       let name = manifest?["name"] as? String ?? String(key.split(separator: "@").first ?? Substring(key))
       result.append((name, root))
     }
     return result
   }
+
+  /// Installed Codex plugins as (name, newest cached version), minus those `config.toml` turns off.
+  private static func codexPlugins(codex: URL) -> [(String, URL)] {
+    let cache = codex.appendingPathComponent("plugins/cache")
+    let off = codexDisabledPlugins(codex.appendingPathComponent("config.toml"))
+    var result: [(String, URL)] = []
+    for marketplace in entries(cache) {
+      for plugin in entries(cache.appendingPathComponent(marketplace)) where !off.contains("\(plugin)@\(marketplace)") {
+        let dir = cache.appendingPathComponent("\(marketplace)/\(plugin)")
+        let versions = entries(dir).map { dir.appendingPathComponent($0) }
+        func modified(_ url: URL) -> Date {
+          (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+        }
+        guard let root = versions.max(by: { modified($0) < modified($1) }) else { continue }
+        let name = json(root.appendingPathComponent(".codex-plugin/plugin.json"))?["name"] as? String ?? plugin
+        result.append((name, root))
+      }
+    }
+    return result
+  }
+
+  /// The `<plugin>@<marketplace>` tables of `config.toml` that say `enabled = false`.
+  private static func codexDisabledPlugins(_ file: URL) -> Set<String> {
+    guard let text = try? String(contentsOf: file, encoding: .utf8) else { return [] }
+    var off = Set<String>()
+    var table: String?
+    for line in text.components(separatedBy: .newlines) {
+      let line = line.trimmingCharacters(in: .whitespaces)
+      if line.hasPrefix("[") {
+        table = line.hasPrefix("[plugins.") && line.hasSuffix("]")
+          ? String(line.dropFirst("[plugins.".count).dropLast()).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+          : nil
+      } else if let table, line.replacingOccurrences(of: " ", with: "").hasPrefix("enabled=false") {
+        off.insert(table)
+      }
+    }
+    return off
+  }
+
+  /// Antigravity plugins in `<root>/plugins/<dir>` that are on, as (name, directory): a
+  /// `plugins.<dir>.enabled` entry in `config.json` wins, else the manifest's `disabled`.
+  private static func antigravityPlugins(roots: [URL], config: URL) -> [(String, URL)] {
+    let settings = json(config.appendingPathComponent("config.json"))?["plugins"] as? [String: [String: Any]] ?? [:]
+    var result: [(String, URL)] = []
+    for root in roots {
+      let plugins = root.appendingPathComponent("plugins")
+      for dir in entries(plugins) {
+        let plugin = plugins.appendingPathComponent(dir)
+        let manifest = ["plugin.json", ".antigravity-plugin/plugin.json", ".gemini-plugin/plugin.json"].lazy
+          .compactMap { json(plugin.appendingPathComponent($0)) }.first
+        guard let manifest else { continue }
+        let on = settings[dir]?["enabled"] as? Bool ?? (manifest["disabled"] as? Bool != true)
+        if on { result.append((manifest["name"] as? String ?? dir, plugin)) }
+      }
+    }
+    return result
+  }
+
+  // MARK: Front matter
 
   /// The simple `key: value` lines of a YAML front matter block, folded values (`>`, `|`) joined.
   static func frontmatter(_ text: String) -> [String: String] {

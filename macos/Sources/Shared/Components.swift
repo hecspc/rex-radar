@@ -151,7 +151,7 @@ struct HeroCard: View {
           }
           if let skill {
             Button(action: skill) { Label("Skill", systemImage: "wand.and.stars") }
-              .help("Send a skill to Claude")
+              .help("Send a skill to \(row.appLabel)")
           }
         }
         .glassButtonStyle()

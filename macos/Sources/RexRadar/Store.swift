@@ -25,19 +25,20 @@ final class Store: ObservableObject {
   /// The pane the skill picker is open for, in the panel or window.
   @Published var picking: Row?
 
-  /// The skills Claude offers in the pane: read from this Mac's disk for its working directory.
+  /// The skills the pane's agent offers: read from this Mac's disk for its working directory.
   func skills(for row: Row) async throws -> [Skill] {
-    guard row.pane.app == "claude-code", row.server == nil else { throw SkillError.notClaude }
-    return try await Task.detached { SkillCatalog.skills(cwd: try Rex.workingDirectory(row)) }.value
+    guard let agent = row.skillAgent, row.server == nil else { throw SkillError.unsupported }
+    return try await Task.detached { SkillCatalog.skills(cwd: try Rex.workingDirectory(row), agent: agent) }.value
   }
 
-  /// Types the skill into the pane, if Claude offers it there. Throws on refusal.
+  /// Types the skill into the pane, if its agent offers it there. Throws on refusal.
   func sendSkill(_ row: Row, _ request: SkillRequest) async throws {
     try request.validate()
+    guard let agent = row.skillAgent else { throw SkillError.unsupported }
     guard try await skills(for: row).contains(where: { $0.name == request.name }) else {
-      throw SkillError.unknown(request.name)
+      throw SkillError.unknown(agent.sigil + request.name)
     }
-    try await Task.detached { try Rex.sendSkill(row, request) }.value
+    try await Task.detached { try Rex.sendSkill(row, request, agent: agent) }.value
     if picking?.id == row.id { picking = nil }
     reload()
   }

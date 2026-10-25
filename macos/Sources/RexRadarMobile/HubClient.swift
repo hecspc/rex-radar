@@ -33,7 +33,7 @@ final class HubClient {
   private(set) var agentsByHub: [UUID: [Row]] = [:]
   /// Per Mac: whether it lets this device answer Claude's questions (its Settings).
   private(set) var answeringByHub: [UUID: Bool] = [:]
-  /// Per Mac: whether it lets this device send skills to Claude (its Settings).
+  /// Per Mac: whether it lets this device send skills to agents (its Settings).
   private(set) var skillsByHub: [UUID: Bool] = [:]
   /// Per Mac: whether it lets this device allow or deny agents' permissions (its Settings).
   private(set) var permissionsByHub: [UUID: Bool] = [:]
@@ -263,11 +263,11 @@ final class HubClient {
 
   // MARK: Skills
 
-  /// Whether a skill can be sent to this agent from here: Claude on its Mac's own Rex, and that
-  /// Mac allows it.
+  /// Whether a skill can be sent to this agent from here: Claude Code, Codex or Antigravity on its
+  /// Mac's own Rex, and that Mac allows it.
   func canSendSkill(_ agent: Agent) -> Bool { agent.row.takesSkills && (skillsByHub[agent.hubID] ?? false) }
 
-  /// The skills Claude offers in the agent's pane, as its Mac reads them.
+  /// The skills the agent offers in its pane, as its Mac reads them.
   func skills(_ agent: Agent) async throws -> [Skill] {
     let (url, token) = try endpoint("v1/skills", agent)
     return try JSONDecoder().decode([Skill].self, from: try await Self.request(url, method: "GET", token: token, body: nil))

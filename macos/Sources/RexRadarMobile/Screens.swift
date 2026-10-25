@@ -267,7 +267,7 @@ struct AnswerSheet: View {
   }
 }
 
-/// The skills Claude offers in an agent's pane, sent to the Mac that reported it.
+/// The skills an agent offers in its pane, sent to the Mac that reported it.
 struct SkillSheet: View {
   let client: HubClient
   let agent: Agent
@@ -280,7 +280,8 @@ struct SkillSheet: View {
         send: { request in
           try await client.sendSkill(agent, request)
           dismiss()
-        }
+        },
+        agentName: agent.row.appLabel
       )
       .padding()
       .frame(maxWidth: 640)

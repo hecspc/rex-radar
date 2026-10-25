@@ -24,7 +24,7 @@ struct MenuPanel: View {
               Text("\(row.pane.session ?? "Session") · \(row.tabLabel)").font(.subheadline).foregroundStyle(.secondary)
               SkillPicker(
                 load: { try await store.skills(for: row) }, send: { try await store.sendSkill(row, $0) },
-                cancel: { store.picking = nil }, listHeight: 300)
+                agentName: row.appLabel, cancel: { store.picking = nil }, listHeight: 300)
             }
           }
         } else if let hero = store.rows.first {

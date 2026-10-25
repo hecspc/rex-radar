@@ -39,7 +39,7 @@ Data flows one way: Rex server → Lua watcher → JSON snapshots → Mac app �
 
 ### Sending skills
 
-`SkillCatalog.swift` lists what Claude's slash menu offers for a pane's working directory (project, user and enabled plugin skills and commands, from the Mac's disk), and `Rex.sendSkill` types `/name args` and Enter. Only panes on the Mac's own server qualify (`Row.takesSkills`). See README "Sending skills".
+`SkillCatalog.swift` lists what the agent's menu offers for a pane's working directory (project, user and enabled plugin skills, and Claude's commands, from the Mac's disk), per agent: Claude Code (`~/.claude`, `.claude/`), Codex (`.agents/skills`, `.codex/skills`, `~/.codex/plugins/cache`) and Antigravity (`.agents/skills`, `~/.gemini/config`). `Rex.sendSkill` types `/name args` and Enter for Claude Code and Antigravity, and `$name args` and Tab for Codex (Enter only picks from Codex's `$` menu, and steers a running turn where Tab queues). The agents are `SkillAgent` (`Shared/Skills.swift`). Only panes on the Mac's own server qualify (`Row.takesSkills`). Re-test the keys on each agent before adding one. Test with `RexRadar --skill <block id> list|'<SkillRequest json>'`. See README "Sending skills".
 
 ### Allowing permissions
 

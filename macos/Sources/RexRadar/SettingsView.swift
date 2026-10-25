@@ -35,7 +35,7 @@ final class Preferences: ObservableObject {
     didSet { UserDefaults.standard.set(allowPhoneAnswers, forKey: "allowPhoneAnswers") }
   }
 
-  /// Off by default too: a skill can do anything Claude can.
+  /// Off by default too: a skill can do anything the agent can.
   @Published var allowPhoneSkills: Bool {
     didSet { UserDefaults.standard.set(allowPhoneSkills, forKey: "allowPhoneSkills") }
   }
@@ -133,13 +133,14 @@ struct SettingsView: View {
       }
 
       Section {
-        Toggle("Let iPhone & iPad send skills to Claude", isOn: $prefs.allowPhoneSkills)
+        Toggle("Let iPhone & iPad send skills to agents", isOn: $prefs.allowPhoneSkills)
       } header: {
         Text("Skills")
       } footer: {
         Text(
-          "Sending types /skill and its arguments into the Claude pane in Rex, then Enter. Rex Radar only sends "
-            + "skills Claude offers in that pane, one line, and never while Claude waits on a question or a permission.")
+          "Sending types the skill and its arguments into the agent's pane in Rex (/skill for Claude Code and "
+            + "Antigravity, $skill for Codex), then submits it. Rex Radar only sends skills the agent offers in that "
+            + "pane, one line, and never while the agent waits on a question or a permission.")
       }
 
       Section {

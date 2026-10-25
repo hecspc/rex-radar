@@ -207,13 +207,24 @@ enum Rex {
     try statusRecords(row).contains { $0["state"] as? String == "blocked" }
   }
 
-  /// Runs a skill the way you would: types `/name args` at Claude's prompt, then Enter. One Enter
-  /// submits even while the slash menu is open, as tested on Claude Code 2.1.310; while Claude
-  /// works, it queues the message.
-  static func sendSkill(_ row: Row, _ request: SkillRequest) throws {
+  /// Runs a skill the way you would, as tested on 2026-10-25; while the agent works, the message
+  /// queues.
+  /// - Claude Code 2.1.310 and Antigravity 1.4.7: `/name args`, then Enter, which submits even
+  ///   while the slash menu is open.
+  /// - Codex 0.164.0: `$name args`, then Tab. Enter would only pick from the `$` menu (a space
+  ///   after a bare name closes it), and while Codex works Enter steers the running turn where
+  ///   Tab queues.
+  static func sendSkill(_ row: Row, _ request: SkillRequest, agent: SkillAgent) throws {
     guard try !isBlocked(row) else { throw SkillError.busy }
-    try type(row, request.line)
-    try key(row, "enter")
+    let line = request.line(agent)
+    switch agent {
+    case .claudeCode, .antigravity:
+      try type(row, line)
+      try key(row, "enter")
+    case .codex:
+      try type(row, line.contains(" ") ? line : line + " ")
+      try key(row, "tab")
+    }
   }
 
   /// Runs `rex [-S server] <args>` and returns its output.

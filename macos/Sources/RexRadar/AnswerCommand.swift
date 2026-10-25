@@ -1,13 +1,14 @@
 import AppKit
 
 /// `RexRadar --answer <block id> '<answers json>'` answers a pane's question list, and
-/// `RexRadar --decide <block id> allow|deny` its agent's permission prompt, the way the app's
-/// buttons do; it prints the outcome and quits. For testing without clicking.
+/// `RexRadar --decide <block id> allow|deny` its agent's permission prompt, and
+/// `RexRadar --skill <block id> list|'<SkillRequest json>'` lists or sends a skill, the way the
+/// app's buttons do; it prints the outcome and quits. For testing without clicking.
 @MainActor
 enum AnswerCommand {
   static var arguments: (flag: String, block: String, value: String)? {
     let args = CommandLine.arguments
-    for flag in ["--answer", "--decide"] {
+    for flag in ["--answer", "--decide", "--skill"] {
       if let i = args.firstIndex(of: flag), i + 2 < args.count { return (flag, args[i + 1], args[i + 2]) }
     }
     return nil
@@ -28,6 +29,16 @@ enum AnswerCommand {
           print("prompt: \(prompt)")
           try await store.decide(row, decision, prompt: prompt)
           print(decision == .allow ? "allowed" : "denied")
+        } else if flag == "--skill" {
+          guard let row = store.rows.first(where: { $0.pane.blockId.hasSuffix(block) }) else {
+            throw SkillError.unsupported
+          }
+          if value == "list" {
+            for skill in try await store.skills(for: row) { print("\(skill.scope.rawValue)\t\(skill.command)") }
+          } else {
+            try await store.sendSkill(row, try JSONDecoder().decode(SkillRequest.self, from: Data(value.utf8)))
+            print("sent")
+          }
         } else {
           guard let row = store.rows.first(where: { $0.pane.blockId.hasSuffix(block) }) else {
             throw AnswerError.notWaiting

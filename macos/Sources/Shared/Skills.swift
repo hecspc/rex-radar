@@ -1,6 +1,16 @@
 import Foundation
 
-/// A skill or slash command Claude Code offers in a pane, as the Mac finds it on disk.
+/// The agents Rex Radar sends skills to, by Rex app id, and how each takes one at its prompt.
+enum SkillAgent: String {
+  case claudeCode = "claude-code"
+  case codex
+  case antigravity
+
+  /// What goes before a skill's name: Codex mentions skills as `$name`, the others run `/name`.
+  var sigil: String { self == .codex ? "$" : "/" }
+}
+
+/// A skill or slash command an agent offers in a pane, as the Mac finds it on disk.
 struct Skill: Codable, Hashable, Identifiable {
   enum Scope: String, Codable, CaseIterable {
     case project, user, plugin
@@ -14,19 +24,24 @@ struct Skill: Codable, Hashable, Identifiable {
     }
   }
 
-  /// What follows the slash: `commit`, or `plugin:skill` for a plugin's.
+  /// What follows the sigil: `commit`, or `plugin:skill` for a plugin's.
   var name: String
   var description: String?
   var scope: Scope
   var plugin: String?
+  /// `/` or `$`; absent from Macs that only sent skills to Claude, which take `/`.
+  var sigil: String?
 
   var id: String { scope.rawValue + "/" + name }
+
+  /// What you'd type at the agent's prompt: `/commit`, `$imagegen`.
+  var command: String { (sigil ?? "/") + name }
 
   /// Every word of the filter appears in the name or the description.
   func matches(_ query: String) -> Bool {
     let words = query.lowercased().split(whereSeparator: \.isWhitespace)
     let text = (name + " " + (description ?? "")).lowercased()
-    return words.allSatisfy { text.contains($0.hasPrefix("/") ? String($0.dropFirst()) : String($0)) }
+    return words.allSatisfy { text.contains(String($0.drop { $0 == "/" || $0 == "$" })) }
   }
 }
 
@@ -35,10 +50,10 @@ struct SkillRequest: Codable {
   var name: String
   var arguments: String?
 
-  /// What Rex Radar types into the pane before Enter.
-  var line: String {
+  /// What Rex Radar types into the pane before the key that submits it.
+  func line(_ agent: SkillAgent) -> String {
     let args = arguments?.trimmingCharacters(in: .whitespaces) ?? ""
-    return args.isEmpty ? "/" + name : "/\(name) \(args)"
+    return args.isEmpty ? agent.sigil + name : "\(agent.sigil)\(name) \(args)"
   }
 
   /// One short line, nothing that could act as a key press when typed.
@@ -51,20 +66,23 @@ struct SkillRequest: Codable {
 }
 
 enum SkillError: LocalizedError, Equatable {
-  case invalid, unknown(String), busy, notClaude
+  case invalid, unknown(String), busy, unsupported
 
   var errorDescription: String? {
     switch self {
     case .invalid: "Arguments must be one short line."
-    case .unknown(let name): "Claude doesn't offer /\(name) in that pane."
-    case .busy: "Claude is waiting on a question or a permission in that pane; answer it first."
-    case .notClaude: "That pane isn't running Claude Code on this Mac's Rex."
+    case .unknown(let command): "The agent doesn't offer \(command) in that pane."
+    case .busy: "The agent is waiting on a question or a permission in that pane; answer it first."
+    case .unsupported: "That pane isn't running Claude Code, Codex or Antigravity on this Mac's Rex."
     }
   }
 }
 
 extension Row {
-  /// Claude Code on the Mac's own Rex server (its skills are on that Mac's disk), not stuck on a
-  /// prompt that typing would answer.
-  var takesSkills: Bool { pane.app == "claude-code" && server == nil && !stale && state != .blocked }
+  /// The agent in the pane, when it's one Rex Radar can send skills to.
+  var skillAgent: SkillAgent? { pane.app.flatMap(SkillAgent.init(rawValue:)) }
+
+  /// Claude Code, Codex or Antigravity on the Mac's own Rex server (its skills are on that Mac's
+  /// disk), not stuck on a prompt that typing would answer.
+  var takesSkills: Bool { skillAgent != nil && server == nil && !stale && state != .blocked }
 }

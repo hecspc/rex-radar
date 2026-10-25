@@ -9,7 +9,7 @@ import Network
 ///                              Settings allows it, refused otherwise
 ///   POST /v1/permission?id=<row> → allows or denies the permission it asks for (body:
 ///                              PermissionReply); only when Settings allows it
-///   GET  /v1/skills?id=<row> → the skills Claude offers in that pane ([Skill])
+///   GET  /v1/skills?id=<row> → the skills its agent offers in that pane ([Skill])
 ///   POST /v1/skill?id=<row>  → types one into it (body: SkillRequest); both only when Settings
 ///                              allows it
 ///   POST /v1/open?id=<row>   → shows that pane in Rex here (body: the row, for agents another Mac

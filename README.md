@@ -3,7 +3,7 @@
 A glanceable view of the coding agents running in [Rex](https://www.superlogical.com/rex) terminal sessions,
 across several Rex servers: a macOS menu bar app and desktop widget, an iPhone and iPad app with widgets, and an
 Apple Watch app with complications. See which agent is blocked, done or working, jump to its pane in Rex, answer
-Claude's questions and send it skills, from wherever you are.
+Claude's questions and send agents skills, from wherever you are.
 
 > A community project, not affiliated with Superlogical. Rex is in beta and its API changes weekly, so things
 > can break with a Rex update; what's been verified, and on which builds, is noted below.
@@ -28,8 +28,8 @@ Claude's questions and send it skills, from wherever you are.
   summary and conversation topic.
 - **Open in Rex**: click or tap an agent to switch your Mac's Rex app to its pane, on any of your Rex servers.
 - **Answer Claude's questions** (its AskUserQuestion forms) from the Mac, iPhone, iPad, watch or Apple TV.
-- **Send skills**: pick any skill or slash command Claude offers in a pane (project, user and plugin), filtered as
-  you type, and send it with arguments.
+- **Send skills**: pick any skill or slash command Claude Code, Codex or Antigravity offers in a pane (project,
+  user and plugin), filtered as you type, and send it with arguments.
 - **Widgets and complications** on the Mac desktop, Home and Lock Screen, and the watch face.
 - **Apple TV**: a full-screen grid of your agents for the wall, paired by allowing it on the Mac.
 
@@ -161,7 +161,7 @@ start, `working`, `blocked` with `kind=permission` and the command in `msg` ("Ap
 `done` with the reply in `msg`, all with `app=antigravity`. It sets no terminal title, so the card shows `msg`.
 Gemini CLI is deprecated in favour of it and was not tested.
 
-Answering and skills stay Claude Code only.
+Answering questions stays Claude Code only; permissions and skills work for all three.
 
 ### Opening a tab in the right app
 
@@ -361,26 +361,53 @@ agent idle.
 
 ### Sending skills
 
-Any Claude Code pane on the Mac's own Rex server can be sent a skill from the Mac panel, the window, iPhone and
-iPad (not the watch): **Skill** on its card opens a picker that filters as you type (every word must appear in the
-name or description; Return picks the first match), grouped **Project**, **User** and **Plugins**, then takes
-optional arguments.
+Any Claude Code, Codex or Antigravity pane on the Mac's own Rex server can be sent a skill from the Mac panel, the
+window, iPhone and iPad (not the watch or Apple TV): **Skill** on its card opens a picker that filters as you type
+(every word must appear in the name or description; Return picks the first match), grouped **Project**, **User**
+and **Plugins**, then takes optional arguments.
 
-- **Catalog** (`SkillCatalog.swift`): what Claude Code's slash menu lists, read from the Mac's disk for the pane's
-  working directory (the foreground process's `cwd` from `com.superlogical.terminal.process`). Project:
-  `.claude/skills/*/SKILL.md` and `.claude/commands/**/*.md` in that directory and its parents below `~`, nearest
-  first. User: the same under `~/.claude`. Plugins: `skills/` and `commands/` of each plugin in
-  `~/.claude/plugins/installed_plugins.json` that `enabledPlugins` turns on (user, then project settings), or that's
-  managed and not turned off, as `/<plugin>:<name>`. `user-invocable: false` skills are left out. Built-in commands
-  and skills that don't live on disk aren't listed.
-- **Sending**: types `/name arguments` into the pane, then Enter. Verified 2026-10-25 on Claude Code 2.1.310: one
-  Enter submits with or without arguments, even while the slash menu is open; while Claude works the message
-  queues. Refused when Rex reports any blocked record (a question or permission prompt would take the keys), when
-  the name isn't in the pane's catalog, or when the arguments aren't one line of at most 500 characters.
-  Whatever is already typed at Claude's prompt stays and comes first.
-- **Phones**: only when **Settings → Let iPhone & iPad send skills to Claude** is on (off by default):
-  `GET /v1/skills?id=…` and `POST /v1/skill?id=…` (body `{"name", "arguments"}`) answer `403` otherwise. Remote
-  servers aren't offered: their skills are on another machine's disk.
+- **Catalog** (`SkillCatalog.swift`): what the agent's menu lists, read from the Mac's disk for the pane's working
+  directory (the foreground process's `cwd` from `com.superlogical.terminal.process`). A name found in more than
+  one place counts once, from the first place below. Built-in commands and skills that don't live on disk aren't
+  listed.
+  - **Claude Code**, `/name`. Project: `.claude/skills/*/SKILL.md` and `.claude/commands/**/*.md` in that directory
+    and its parents below `~`, nearest first. User: the same under `~/.claude`. Plugins: `skills/` and `commands/`
+    of each plugin in `~/.claude/plugins/installed_plugins.json` that `enabledPlugins` turns on (user, then project
+    settings), or that's managed and not turned off, as `/<plugin>:<name>`. `user-invocable: false` skills are
+    left out.
+  - **Codex**, `$name` (skills only, no commands). Project: `.agents/skills/*/SKILL.md` and `.codex/skills/*/SKILL.md`
+    in that directory and its parents up to the repository root (the folder with `.git`), not above. User:
+    `~/.agents/skills`, `~/.codex/skills` and its bundled `~/.codex/skills/.system`. Plugins: the newest cached
+    version of each installed plugin, `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/skills`, as
+    `$<plugin>:<name>`, unless `config.toml` has `enabled = false` under `[plugins."<plugin>@<marketplace>"]`.
+    Codex's menu shows a skill's display name (`agents/openai.yaml`) and inserts `$name`; the picker shows `$name`.
+  - **Antigravity**, `/name`. Project: `skills/*/SKILL.md` in `.agents`, `.agent`, `_agents` or `_agent`, in that
+    directory and its parents up to the repository root. User: `~/.gemini/config/skills`. Plugins: `plugins/<dir>/`
+    in those same folders with a `plugin.json` manifest, as `/<plugin>:<name>`, unless `~/.gemini/config/config.json`
+    has `plugins.<dir>.enabled: false` (what `agy plugin disable` writes), or has no entry and the manifest says
+    `"disabled": true`. `disable-slash-command: true` skills are left out, and so are the built-in skills
+    in `~/.gemini/antigravity-cli/builtin/skills`: agy's menu offers only some of them (on 1.4.7,
+    `agy-customizations` and `antigravity-guide`) and nothing on disk says which. Not offered: `.gemini/skills`,
+    `~/.agents/skills` and legacy `.agents/workflows`.
+- **Sending**: types the skill and its arguments into the pane, then the key that submits it. Refused when Rex
+  reports any blocked record (a question or permission prompt would take the keys), when the name isn't in the
+  pane's catalog, or when the arguments aren't one line of at most 500 characters. Whatever is already typed at the
+  prompt stays and comes first. Verified 2026-10-25 with temporary "pong" skills in each location above:
+  - Claude Code 2.1.310: `/name arguments`, then Enter. One Enter submits with or without arguments, even while
+    the slash menu is open; while Claude works the message queues.
+  - Codex 0.164.0: `$name arguments` (`$name ` with a trailing space when there are none), then Tab. Enter would
+    only insert the highlighted entry while the `$` menu is open, which a bare name leaves open and a space closes;
+    and while Codex works, Enter steers the running turn (the skill replaced the reply in progress) while Tab
+    queues it as a follow-up. Tab submits right away when Codex is idle. Codex attaches the skill as a `<skill>`
+    block (seen in its session log), plugin skills too (`$plugin-management:plugin-management`).
+  - Antigravity 1.4.7: `/name arguments`, then Enter, which submits even while the slash menu is open; while agy
+    works the message queues and runs after the reply.
+- **Phones**: only when **Settings → Let iPhone & iPad send skills to agents** is on (off by default):
+  `GET /v1/skills?id=…` and `POST /v1/skill?id=…` (body `{"name", "arguments"}`) answer `403` otherwise. Each
+  `Skill` carries its `sigil` (`/` or `$`); a Mac without it means `/`. Remote servers aren't offered: their skills
+  are on another machine's disk.
+- Test without clicking: `RexRadar --skill <block id> list` prints the pane's catalog, and
+  `RexRadar --skill <block id> '{"name": "…", "arguments": "…"}'` sends one.
 
 ### App icon
 
