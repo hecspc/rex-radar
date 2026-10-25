@@ -27,7 +27,7 @@ Claude's questions and send it skills, from wherever you are.
 - **Every agent at a glance**, most urgent first: blocked, error, done, working, idle; with Claude's one-line
   summary and conversation topic.
 - **Open in Rex**: click or tap an agent to switch your Mac's Rex app to its pane, on any of your Rex servers.
-- **Answer Claude's questions** (its AskUserQuestion forms) from the Mac, iPhone, iPad or watch.
+- **Answer Claude's questions** (its AskUserQuestion forms) from the Mac, iPhone, iPad, watch or Apple TV.
 - **Send skills**: pick any skill or slash command Claude offers in a pane (project, user and plugin), filtered as
   you type, and send it with arguments.
 - **Widgets and complications** on the Mac desktop, Home and Lock Screen, and the watch face.
@@ -260,8 +260,15 @@ phone open agents in the Mac's Rex.
 ### Apple TV
 
 `macos/Sources/RexRadarTV` is a tvOS app (tvOS 17+; Liquid Glass on 26+): every agent from every paired Mac as
-a grid of cards, most urgent first, for a screen on the wall. Select **Open in Rex** on a card to open it on the
-main Mac. It reuses the iOS `HubClient`, like the watch. Answering and skills aren't offered yet.
+a grid of cards, most urgent first, for a screen on the wall. Select a card to open it in Rex on the main Mac. It
+reuses the iOS `HubClient`, like the watch. Skills aren't offered.
+
+- **Focus**: each agent is one tvOS card (it lifts under focus), and the header and grid are separate focus
+  sections, so Down from Settings reaches the cards. Focus starts on the first agent.
+- **Answering**: a card whose questions can be answered from here (the Mac's **Let iPhone & iPad answer**
+  setting) says **Answer N questions**, and Select shows them full screen: options only, no free text. Picking an
+  option of a single-choice question moves focus to the next question, then to **Send**; **Open in Rex Instead**
+  is below it. Verified 2026-10-25 in the simulator by answering a two-question list from the TV.
 
 - **Pairing**: the Apple TV has no camera for the QR code. It lists the Macs advertising `_rexradar._tcp` over
   Bonjour (or takes an address, for a Mac on Tailscale), resolves the chosen one to its IPv4 address, and asks it:
@@ -274,7 +281,8 @@ main Mac. It reuses the iOS `HubClient`, like the watch. Answering and skills ar
   `make-icon.swift` into `macos/Resources/TVAssets.xcassets`.
 - Builds with `xcodebuild -scheme RexRadarTV …`. In a simulator, which can't press the remote from the command
   line, `SIMCTL_CHILD_REXRADAR_PAIR_WITH=<Mac name> xcrun simctl launch <sim> house.milapan.rex-radar.tv` asks
-  that Mac as soon as it's found.
+  that Mac as soon as it's found, and `SIMCTL_CHILD_REXRADAR_SHOW_ANSWER=1` opens the first answerable agent's
+  questions when they appear.
   Build it signed (ad hoc is enough, `CODE_SIGN_IDENTITY=-`): with `CODE_SIGNING_ALLOWED=NO` the app can't write
   to the Keychain, so it pairs but every request then gets a 401.
 - Verified 2026-10-25 in the Apple TV 4K simulator (Xcode 27): Bonjour found the Mac, it was allowed on the Mac's
