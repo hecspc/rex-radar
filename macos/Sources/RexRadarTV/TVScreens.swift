@@ -119,7 +119,7 @@ struct TVAgentCard: View {
         HStack(alignment: .top) {
           StatePill(row: row)
           Spacer()
-          Text(row.appLabel).font(.caption).foregroundStyle(.secondary)
+          AppBadge(row: row, size: 28)
         }
         VStack(alignment: .leading, spacing: 4) {
           Text(row.pane.session ?? "Session").font(.title3.weight(.semibold)).lineLimit(1)

@@ -121,7 +121,10 @@ struct AgentsView: View {
       if let row = entry.rows.first {
         Image(systemName: row.state.symbol).font(.title2).foregroundStyle(row.state.color)
         Text(row.stateLabel).font(.subheadline.weight(.semibold)).foregroundStyle(row.state.color)
-        Text(row.pane.session ?? "Session").font(.caption).lineLimit(1)
+        HStack(spacing: 4) {
+          AgentIcon(row: row, size: 12)
+          Text(row.pane.session ?? "Session").font(.caption).lineLimit(1)
+        }
         if let detail = row.pane.msg ?? row.topic {
           Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
         }
@@ -169,7 +172,10 @@ struct AgentsView: View {
       VStack(alignment: .leading, spacing: 1) {
         if let row = entry.rows.first {
           Label(row.stateLabel, systemImage: row.state.symbol).font(.headline)
-          Text(row.pane.session ?? "Session").font(.caption).lineLimit(1)
+          HStack(spacing: 4) {
+            AgentIcon(row: row, size: 12)
+            Text(row.pane.session ?? "Session").font(.caption).lineLimit(1)
+          }
           if let detail = row.pane.msg ?? row.topic { Text(detail).font(.caption2).lineLimit(1) }
         } else {
           Label("Rex Radar", systemImage: "dot.radiowaves.left.and.right").font(.headline)
@@ -201,7 +207,10 @@ struct WidgetRow: View {
       Image(systemName: row.state.symbol).foregroundStyle(row.state.color).frame(width: 16)
       VStack(alignment: .leading, spacing: 1) {
         HStack(spacing: 4) {
-          Text(row.pane.session ?? "Session").font(.caption.weight(.semibold)).lineLimit(1)
+          HStack(spacing: 4) {
+            AgentIcon(row: row, size: 12)
+            Text(row.pane.session ?? "Session").font(.caption.weight(.semibold)).lineLimit(1)
+          }
           Text(row.tabLabel).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
           Spacer(minLength: 2)
           Text(row.stale ? "stale" : row.stateLabel).font(.caption2).foregroundStyle(row.state.color)

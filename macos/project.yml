@@ -33,6 +33,7 @@ targets:
     sources:
       - path: Sources/RexRadar
       - path: Sources/Shared
+      - path: Resources/AgentIcons.xcassets
       - path: ../watcher/rex-radar.lua
         buildPhase: resources
       - path: Resources/Assets.xcassets
@@ -53,6 +54,7 @@ targets:
     sources:
       - path: Sources/RexRadarWidget
       - path: Sources/Shared
+      - path: Resources/AgentIcons.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).rex-radar.widget
@@ -69,6 +71,7 @@ targets:
     sources:
       - path: Sources/RexRadarMobile
       - path: Sources/Shared
+      - path: Resources/AgentIcons.xcassets
       - path: Resources/Assets.xcassets
     settings:
       base:
@@ -92,6 +95,7 @@ targets:
     sources:
       - path: Sources/RexRadarWidget
       - path: Sources/Shared
+      - path: Resources/AgentIcons.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).rex-radar.ios.widget
@@ -114,6 +118,7 @@ targets:
         excludes:
           - QuestionsForm.swift
           - SkillPicker.swift
+      - path: Resources/AgentIcons.xcassets
       - path: Resources/Assets.xcassets
     settings:
       base:
@@ -136,6 +141,7 @@ targets:
         excludes:
           - QuestionsForm.swift
           - SkillPicker.swift
+      - path: Resources/AgentIcons.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).rex-radar.ios.watchkitapp.widget
@@ -157,6 +163,7 @@ targets:
         excludes:
           - QuestionsForm.swift
           - SkillPicker.swift
+      - path: Resources/AgentIcons.xcassets
       - path: Resources/TVAssets.xcassets
     settings:
       base:

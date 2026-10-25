@@ -1,5 +1,11 @@
 import SwiftUI
 
+#if os(macOS)
+  import AppKit
+#else
+  import UIKit
+#endif
+
 /// "● Done" in the state's colour, on a tinted capsule.
 struct StatePill: View {
   let row: Row
@@ -13,6 +19,45 @@ struct StatePill: View {
     .padding(.horizontal, 10)
     .padding(.vertical, 4)
     .background(row.state.color.opacity(0.15), in: Capsule())
+  }
+}
+
+/// Which agent it is: its logo, or its symbol in its colour when this build has no logo for it.
+struct AgentIcon: View {
+  let row: Row
+  var size: CGFloat = 14
+
+  private var hasLogo: Bool {
+    guard let name = row.appImage else { return false }
+    #if os(macOS)
+      return NSImage(named: name) != nil
+    #else
+      return UIImage(named: name) != nil
+    #endif
+  }
+
+  var body: some View {
+    if hasLogo, let name = row.appImage {
+      Image(name).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size)
+        .accessibilityLabel(row.appLabel)
+    } else {
+      Image(systemName: row.appSymbol).font(.system(size: size * 0.8, weight: .bold)).foregroundStyle(row.appColor)
+        .frame(width: size, height: size).accessibilityLabel(row.appLabel)
+    }
+  }
+}
+
+/// The agent's icon, then its name: Claude Code, Codex, Antigravity.
+struct AppBadge: View {
+  let row: Row
+  var size: CGFloat = 14
+
+  var body: some View {
+    HStack(spacing: 5) {
+      AgentIcon(row: row, size: size)
+      Text(row.appLabel).foregroundStyle(.secondary)
+    }
+    .font(.caption)
   }
 }
 
@@ -66,7 +111,7 @@ struct HeroCard: View {
         HStack(alignment: .top) {
           StatePill(row: row)
           Spacer()
-          Text(row.appLabel).font(.caption).foregroundStyle(.secondary)
+          AppBadge(row: row)
         }
         VStack(alignment: .leading, spacing: 2) {
           Text(row.pane.session ?? "Session").font(.title3.weight(.semibold)).lineLimit(1)
@@ -151,6 +196,7 @@ struct AgentRow: View {
           .frame(width: 22)
         VStack(alignment: .leading, spacing: 2) {
           HStack(spacing: 6) {
+            AgentIcon(row: row, size: 13).help(row.appLabel)
             Text(row.pane.session ?? "Session").font(.callout.weight(.medium)).lineLimit(1)
             Text(row.tabLabel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 4)

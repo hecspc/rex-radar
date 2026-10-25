@@ -24,7 +24,10 @@ struct AgentCell: View {
     HStack(alignment: .top, spacing: 8) {
       Image(systemName: agent.row.state.symbol).foregroundStyle(agent.row.state.color)
       VStack(alignment: .leading, spacing: 2) {
-        Text(agent.row.pane.session ?? "Session").font(.headline).lineLimit(1)
+        HStack(spacing: 4) {
+          AgentIcon(row: agent.row, size: 13)
+          Text(agent.row.pane.session ?? "Session").font(.headline).lineLimit(1)
+        }
         Text(agent.row.stateLabel).font(.caption2).foregroundStyle(agent.row.state.color)
         if let detail = agent.row.permission?.prompt ?? agent.row.pane.msg ?? agent.row.topic {
           Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
@@ -45,6 +48,7 @@ struct AgentDetail: View {
         Label(agent.row.stateLabel, systemImage: agent.row.state.symbol)
           .font(.headline).foregroundStyle(agent.row.state.color)
         Text(agent.row.pane.session ?? "Session").font(.title3.weight(.semibold))
+        AppBadge(row: agent.row)
         Text("\(agent.row.tabLabel) · \(agent.serverLabel)").font(.caption2).foregroundStyle(.secondary)
         if let topic = agent.row.topic { Text(topic).font(.footnote) }
         if let permission = agent.row.permission {

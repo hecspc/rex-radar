@@ -64,4 +64,34 @@ extension Row {
     case nil: "Agent"
     }
   }
+
+  /// The agent's own logo in Resources/AgentIcons.xcassets, for the agents that have one.
+  var appImage: String? {
+    switch pane.app {
+    case "claude-code": "AgentClaudeCode"
+    case "codex": "AgentCodex"
+    case "antigravity": "AgentAntigravity"
+    default: nil
+    }
+  }
+
+  /// Without a logo (another agent, or the SwiftPM build, which has no asset catalog): a
+  /// generic symbol and colour.
+  var appSymbol: String {
+    switch pane.app {
+    case "claude-code": "asterisk"
+    case "codex": "curlybraces"
+    case "antigravity": "arrow.up.circle"
+    default: "cpu"
+    }
+  }
+
+  var appColor: Color {
+    switch pane.app {
+    case "claude-code": Color(red: 0.85, green: 0.47, blue: 0.34)
+    case "codex": Color(red: 0.16, green: 0.70, blue: 0.64)
+    case "antigravity": Color(red: 0.26, green: 0.52, blue: 0.96)
+    default: .secondary
+    }
+  }
 }

@@ -99,12 +99,19 @@ versions, in this README.
 
 [MIT](LICENSE)
 
+The agent logos in `macos/Resources/AgentIcons.xcassets` are trademarks of their owners (Claude Code: Anthropic;
+Codex: OpenAI; Antigravity: Google), used only to show which agent runs in a pane. They're rendered from
+[lobehub/icons](https://github.com/lobehub/icons) (`@lobehub/icons-static-svg` 1.100.0, MIT) and aren't covered
+by this project's licence.
+
 # Design notes
 
 ## What it shows
 
 A sidebar like Rex's own: servers → sessions → tabs → panes. Each pane running an agent shows:
 
+- **Agent**: its logo, then its name: Claude Code, Codex and Antigravity (`Resources/AgentIcons.xcassets`); any
+  other agent, and the SwiftPM build (no asset catalog), get a grey chip symbol instead.
 - **State**: idle, working, blocked (permission, question or auth), done or error.
 - **Summary**: one line about what the agent did or needs.
 - **Unread**: done or blocked since you last looked.
