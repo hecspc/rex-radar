@@ -13,6 +13,7 @@ struct MainWindow: View {
 
   @ObservedObject var store: Store
   @StateObject private var model = WindowModel()
+  @ObservedObject private var hub = HubServer.shared
   @Environment(\.openWindow) private var openWindow
 
   var body: some View {
@@ -21,7 +22,9 @@ struct MainWindow: View {
         Label("All Agents", systemImage: "dot.radiowaves.left.and.right")
           .badge(store.attentionCount)
           .tag(Self.all)
-        Label("iPhone & iPad", systemImage: "iphone.and.ipad").tag(Self.devices)
+        Label("Devices", systemImage: "iphone.and.ipad")
+          .badge(hub.waitingPairRequests.count)
+          .tag(Self.devices)
         Section("Servers") {
           ForEach(store.sources, id: \.self) { source in
             Label(source, systemImage: "server.rack")
@@ -37,6 +40,10 @@ struct MainWindow: View {
     }
     .frame(minWidth: 720, minHeight: 460)
     .onAppear { WindowOpener.openWindow = openWindow }
+    // An Apple TV asking to pair: show where to allow it.
+    .onChange(of: hub.waitingPairRequests.map(\.id), initial: true) { _, waiting in
+      if !waiting.isEmpty { model.selection = Self.devices }
+    }
     .sheet(isPresented: Binding(get: { store.answering != nil }, set: { if !$0 { store.stopAnswering() } })) {
       if let (row, draft) = store.answering {
         ScrollView {

@@ -12,9 +12,12 @@ import Network
 ///                              allows it
 ///   POST /v1/open?id=<row>   → shows that pane in Rex here (body: the row, for agents another Mac
 ///                              watches on a server this Mac reaches by address)
+///   POST /v1/pair            → a device without a camera (Apple TV) asks to pair (body:
+///                              PairRequestBody) → PairTicket
+///   GET  /v1/pair?id=<id>    → PairStatus: the token once someone allows it on the Devices page
 ///
-/// Every request needs `Authorization: Bearer <token>`; the token is generated once and shown,
-/// with a pairing QR code, in the window. Advertised over Bonjour as _rexradar._tcp.
+/// Every other request needs `Authorization: Bearer <token>`; the token is generated once and
+/// shown, with a pairing QR code, in the window. Advertised over Bonjour as _rexradar._tcp.
 @MainActor
 final class HubServer: ObservableObject {
   static let shared = HubServer(store: .shared)
@@ -22,6 +25,8 @@ final class HubServer: ObservableObject {
   static let serviceType = "_rexradar._tcp"
 
   @Published private(set) var state = "stopped"
+  /// Devices asking to pair, shown on the Devices page until someone allows or denies them.
+  @Published private(set) var pairRequests: [PairRequest] = []
   let token: String
   private var listener: NWListener?
   private let store: Store
@@ -99,6 +104,7 @@ final class HubServer: ObservableObject {
     guard parts.count >= 2 else { return send(connection, 400, ["error": "bad request"]) }
     let method = String(parts[0])
     let target = URLComponents(string: String(parts[1]))
+    if target?.path == "/v1/pair" { return pairing(method, target, body, on: connection) }
     let auth = lines.dropFirst().first { $0.lowercased().hasPrefix("authorization:") }
       .map { $0.dropFirst("authorization:".count).trimmingCharacters(in: .whitespaces) }
     guard let auth, constantTimeEqual(auth, "Bearer \(token)") else {
@@ -185,7 +191,11 @@ final class HubServer: ObservableObject {
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
     let json = (try? encoder.encode(body)) ?? Data("{}".utf8)
-    let reason = [200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 409: "Conflict"][status] ?? "Error"
+    let reasons = [
+      200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 409: "Conflict",
+      429: "Too Many Requests",
+    ]
+    let reason = reasons[status] ?? "Error"
     var response = Data(
       "HTTP/1.1 \(status) \(reason)\r\nContent-Type: application/json\r\nContent-Length: \(json.count)\r\nConnection: close\r\n\r\n".utf8)
     response.append(json)
@@ -199,6 +209,58 @@ final class HubServer: ObservableObject {
   }
 
   // MARK: Pairing
+
+  /// A device that asked to pair. `allowed` is nil until someone decides on the Devices page.
+  struct PairRequest: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let code: String
+    let created = Date()
+    var allowed: Bool?
+  }
+
+  var waitingPairRequests: [PairRequest] { pairRequests.filter { $0.allowed == nil } }
+
+  func decide(_ request: PairRequest, allow: Bool) {
+    guard let i = pairRequests.firstIndex(where: { $0.id == request.id }) else { return }
+    pairRequests[i].allowed = allow
+  }
+
+  /// /v1/pair, without a token: the device asks, then polls until someone here allows or denies it.
+  /// Requests lapse after two minutes; the token goes out once, to the poll after Allow.
+  private func pairing(_ method: String, _ target: URLComponents?, _ body: Data, on connection: NWConnection) {
+    pairRequests.removeAll { Date().timeIntervalSince($0.created) > 120 }
+    if method == "POST" {
+      guard let request = try? JSONDecoder().decode(PairRequestBody.self, from: body) else {
+        return send(connection, 400, ["error": "bad request"])
+      }
+      // Anyone on the network can ask: keep them from flooding the page.
+      guard waitingPairRequests.count < 3 else {
+        return send(connection, 429, ["error": "Too many devices are asking to pair. Try again in a couple of minutes."])
+      }
+      let name = request.name.trimmingCharacters(in: .whitespacesAndNewlines)
+      let pending = PairRequest(
+        id: UUID().uuidString, name: name.isEmpty ? "A device" : String(name.prefix(60)),
+        code: String(format: "%04d", Int.random(in: 0..<10_000)))
+      pairRequests.append(pending)
+      WindowOpener.showMain()
+      return send(connection, 200, PairTicket(id: pending.id, code: pending.code))
+    }
+    let id = target?.queryItems?.first { $0.name == "id" }?.value
+    guard method == "GET", let i = pairRequests.firstIndex(where: { $0.id == id }) else {
+      return send(connection, 404, ["error": "That pairing request has lapsed. Start again."])
+    }
+    switch pairRequests[i].allowed {
+    case nil:
+      send(connection, 200, PairStatus(status: "pending"))
+    case true?:
+      pairRequests.remove(at: i)
+      send(connection, 200, PairStatus(status: "allowed", token: token, name: hostName))
+    case false?:
+      pairRequests.remove(at: i)
+      send(connection, 200, PairStatus(status: "denied"))
+    }
+  }
 
   /// Addresses an iPhone can reach this Mac at: LAN and Tailscale (100.64.0.0/10) IPv4.
   var addresses: [String] {

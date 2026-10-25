@@ -1,7 +1,8 @@
 import CoreImage.CIFilterBuiltins
 import SwiftUI
 
-/// The window's "iPhone & iPad" page: a pairing QR code per address this Mac has.
+/// The window's "Devices" page: a pairing QR code per address this Mac has for iPhone and iPad,
+/// and the Apple TVs asking to pair.
 struct PairingView: View {
   @ObservedObject var hub: HubServer
 
@@ -17,6 +18,9 @@ struct PairingView: View {
           .foregroundStyle(.secondary)
           Label("Hub \(hub.state) · port \(HubServer.port)", systemImage: "antenna.radiowaves.left.and.right")
             .font(.caption).foregroundStyle(.secondary)
+        }
+        ForEach(hub.waitingPairRequests) { request in
+          PairRequestCard(hub: hub, request: request)
         }
         GlassEffectContainer(spacing: 16) {
           LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 16)], spacing: 16) {
@@ -36,10 +40,19 @@ struct PairingView: View {
           }
         }
         Text("Token: \(hub.token)").font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Connect Apple TV").font(.title2.weight(.bold))
+          Text(
+            "Open Rex Radar on the Apple TV and choose this Mac (or enter one of the addresses above). "
+              + "The request shows up here, with a code to check against the TV's screen."
+          )
+          .foregroundStyle(.secondary)
+        }
+        .padding(.top, 8)
       }
       .padding(24)
     }
-    .navigationTitle("iPhone & iPad")
+    .navigationTitle("Devices")
   }
 
   /// Tailscale first: it reaches the Mac from anywhere, encrypted.
@@ -53,6 +66,29 @@ struct PairingView: View {
   }
 
   private func label(for ip: String) -> String { isTailscale(ip) ? "Tailscale · anywhere" : "Local network" }
+}
+
+/// A device asking to pair: its name and code, with Allow and Deny.
+struct PairRequestCard: View {
+  @ObservedObject var hub: HubServer
+  let request: HubServer.PairRequest
+
+  var body: some View {
+    GlassCard(padding: 16) {
+      HStack(spacing: 16) {
+        Image(systemName: "appletv").font(.largeTitle).foregroundStyle(.tint)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("“\(request.name)” wants to pair").font(.headline)
+          Text("Allow it only if the TV shows this code. It can then see your agents and open them here.")
+            .font(.callout).foregroundStyle(.secondary)
+        }
+        Spacer()
+        Text(request.code).font(.system(.largeTitle, design: .monospaced).weight(.bold))
+        Button("Deny") { hub.decide(request, allow: false) }
+        Button("Allow") { hub.decide(request, allow: true) }.buttonStyle(.borderedProminent)
+      }
+    }
+  }
 }
 
 enum QRCode {

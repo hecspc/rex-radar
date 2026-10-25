@@ -31,6 +31,7 @@ Claude's questions and send it skills, from wherever you are.
 - **Send skills**: pick any skill or slash command Claude offers in a pane (project, user and plugin), filtered as
   you type, and send it with arguments.
 - **Widgets and complications** on the Mac desktop, Home and Lock Screen, and the watch face.
+- **Apple TV**: a full-screen grid of your agents for the wall, paired by allowing it on the Mac.
 
 ## Requirements
 
@@ -75,12 +76,14 @@ xcodebuild -project RexRadar.xcodeproj -scheme RexRadarMobile -destination 'id=<
 ```
 
 Or open `RexRadar.xcodeproj` in Xcode and run it there. Then pair: on the Mac open Rex Radar's window →
-**iPhone & iPad** and scan the QR code with the iPhone's Camera. The watch gets its pairing from the phone.
+**Devices** and scan the QR code with the iPhone's Camera. The watch gets its pairing from the phone. The Apple
+TV finds the Mac on the network and asks; allow it on the same page.
 
 ### Security
 
 The Mac app serves its agents to your phone over plain HTTP on port 7298, with a random bearer token from the
-pairing code. Anyone with the token can see your agents and open panes; answering questions and sending skills
+pairing code. Anyone with the token can see your agents and open panes. An Apple TV gets the same token, only
+after you choose Allow on the Mac; answering questions and sending skills
 are off until you turn them on in Settings. Use it on a network you trust, ideally over
 [Tailscale](https://tailscale.com), which encrypts it and lets the phone reach the Mac from anywhere.
 
@@ -221,7 +224,7 @@ phone open agents in the Mac's Rex.
 - **Hub** (in the Mac app): HTTP on port 7298, `GET /v1/agents`, `POST /v1/open?id=…`, `POST /v1/answer?id=…`,
   `GET /v1/skills?id=…` and `POST /v1/skill?id=…`, every request with
   `Authorization: Bearer <token>`; advertised over Bonjour as `_rexradar._tcp`.
-- **Pairing**: the Mac window's **iPhone & iPad** page shows a QR code per address (Tailscale first). Scan it with
+- **Pairing**: the Mac window's **Devices** page shows a QR code per address (Tailscale first). Scan it with
   the Camera app: the `rexradar://pair?host=…&token=…` link opens the app and pairs it. The token goes to the
   Keychain. A form takes the address and token by hand.
 - **Local network**: iOS asks once to allow local network access; the app can't reach the Mac on the LAN until it's
@@ -253,6 +256,29 @@ phone open agents in the Mac's Rex.
   `group.house.milapan.rex-radar.watch`.
 - Verified 2026-10-25 on an Apple Watch Series 10 (watchOS 27.0.1): list, agent page and answering. Install it
   on a real watch after pairing it in Xcode 27's DeviceHub (+ → Pair Nearby Device) with Developer Mode on.
+
+### Apple TV
+
+`macos/Sources/RexRadarTV` is a tvOS app (tvOS 17+; Liquid Glass on 26+): every agent from every paired Mac as
+a grid of cards, most urgent first, for a screen on the wall. Select **Open in Rex** on a card to open it on the
+main Mac. It reuses the iOS `HubClient`, like the watch. Answering and skills aren't offered yet.
+
+- **Pairing**: the Apple TV has no camera for the QR code. It lists the Macs advertising `_rexradar._tcp` over
+  Bonjour (or takes an address, for a Mac on Tailscale), resolves the chosen one to its IPv4 address, and asks it:
+  `POST /v1/pair` (body `{"name"}`, no token) returns an id and a four-digit code. The Mac brings its window to
+  **Devices**, where the request shows the same code with **Allow** and **Deny**; the TV polls
+  `GET /v1/pair?id=…` until it gets the token (once) or a denial. Requests lapse after two minutes, and at most
+  three wait at a time.
+- **Keep the Screen On** (Settings, on by default): no screen saver or sleep while the app is open.
+- **Icon**: a layered icon (night blue behind, radar and dino in front) and Top Shelf images, drawn by
+  `make-icon.swift` into `macos/Resources/TVAssets.xcassets`.
+- Builds with `xcodebuild -scheme RexRadarTV …`. In a simulator, which can't press the remote from the command
+  line, `SIMCTL_CHILD_REXRADAR_PAIR_WITH=<Mac name> xcrun simctl launch <sim> house.milapan.rex-radar.tv` asks
+  that Mac as soon as it's found.
+  Build it signed (ad hoc is enough, `CODE_SIGN_IDENTITY=-`): with `CODE_SIGNING_ALLOWED=NO` the app can't write
+  to the Keychain, so it pairs but every request then gets a 401.
+- Verified 2026-10-25 in the Apple TV 4K simulator (Xcode 27): Bonjour found the Mac, it was allowed on the Mac's
+  Devices page, and the grid showed the Mac's agents. Not yet on a real Apple TV.
 
 ### Answering Claude's questions
 

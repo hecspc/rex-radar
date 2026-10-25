@@ -1,13 +1,13 @@
 import SwiftUI
 
-// Liquid Glass where the system has it (iOS/iPadOS/macOS 26), the frosted material before.
-// The iOS app supports iOS 17, so shared views go through these rather than the glass APIs.
+// Liquid Glass where the system has it (iOS/iPadOS/macOS/tvOS 26), the frosted material before.
+// The iOS and tvOS apps support 17, so shared views go through these rather than the glass APIs.
 
 extension View {
   /// A glass (or frosted) background in the given shape.
   @ViewBuilder
   func glassBackground<S: Shape>(in shape: S) -> some View {
-    if #available(iOS 26, macOS 26, watchOS 26, *) {
+    if #available(iOS 26, macOS 26, watchOS 26, tvOS 26, *) {
       glassEffect(.regular, in: shape)
     } else {
       background(.regularMaterial, in: shape)
@@ -17,7 +17,7 @@ extension View {
   /// The glass button style, or the bordered one.
   @ViewBuilder
   func glassButtonStyle() -> some View {
-    if #available(iOS 26, macOS 26, watchOS 26, *) {
+    if #available(iOS 26, macOS 26, watchOS 26, tvOS 26, *) {
       buttonStyle(.glass)
     } else {
       buttonStyle(.bordered)
@@ -27,7 +27,7 @@ extension View {
   /// The prominent glass button style, or the prominent bordered one.
   @ViewBuilder
   func glassProminentButtonStyle() -> some View {
-    if #available(iOS 26, macOS 26, watchOS 26, *) {
+    if #available(iOS 26, macOS 26, watchOS 26, tvOS 26, *) {
       buttonStyle(.glassProminent)
     } else {
       buttonStyle(.borderedProminent)
@@ -41,7 +41,7 @@ struct GlassGroup<Content: View>: View {
   @ViewBuilder var content: Content
 
   var body: some View {
-    if #available(iOS 26, macOS 26, watchOS 26, *) {
+    if #available(iOS 26, macOS 26, watchOS 26, tvOS 26, *) {
       GlassEffectContainer(spacing: spacing) { content }
     } else {
       content

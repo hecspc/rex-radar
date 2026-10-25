@@ -11,3 +11,22 @@ struct AgentsResponse: Codable {
   /// Whether this Mac lets phones send skills to Claude (Settings, off by default).
   var skills: Bool? = nil
 }
+
+/// POST /v1/pair: a device without a camera (Apple TV) asks to pair; someone allows it on the Mac.
+struct PairRequestBody: Codable {
+  var name: String
+}
+
+/// The answer to POST /v1/pair: poll GET /v1/pair?id=<id>. Both screens show `code`, so you can
+/// tell the request you allow on the Mac is the one on your TV.
+struct PairTicket: Codable {
+  var id: String
+  var code: String
+}
+
+/// GET /v1/pair?id=…: "pending", "allowed" (with the token and the Mac's name) or "denied".
+struct PairStatus: Codable {
+  var status: String
+  var token: String? = nil
+  var name: String? = nil
+}

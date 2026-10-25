@@ -4,6 +4,9 @@
 //
 // A dino head (our own drawing, a nod to Rex's mascot) in front of a glowing radar screen,
 // on a night-blue tile. Everything is drawn in a 1024 × 1024 box, y up.
+//
+// tvOS gets its own catalog beside it (Resources/TVAssets.xcassets): a wide, layered icon (the
+// night blue behind, the radar and dino in front, for the parallax) and the Top Shelf images.
 import AppKit
 
 let out = CommandLine.arguments.dropFirst().first ?? "Resources/Assets.xcassets/AppIcon.appiconset"
@@ -14,8 +17,16 @@ func color(_ hex: UInt32, _ alpha: CGFloat = 1) -> NSColor {
     blue: CGFloat(hex & 0xff) / 255, alpha: alpha)
 }
 
+/// The tvOS icon's layers: the background, and what's in front of it.
+struct Parts: OptionSet {
+  let rawValue: Int
+  static let back = Parts(rawValue: 1)
+  static let front = Parts(rawValue: 2)
+  static let all: Parts = [.back, .front]
+}
+
 /// `tile`: draw the rounded tile (macOS); iOS gets a full square and masks it itself.
-func draw(in ctx: CGContext, tile: Bool) {
+func draw(in ctx: CGContext, tile: Bool, parts: Parts = .all) {
   let full = CGRect(x: 0, y: 0, width: 1024, height: 1024)
   let rect = tile ? full.insetBy(dx: 100, dy: 100) : full
   let s = rect.width / 1024
@@ -34,13 +45,16 @@ func draw(in ctx: CGContext, tile: Bool) {
   ctx.translateBy(x: rect.minX, y: rect.minY)
   ctx.scaleBy(x: s, y: s)
 
-  // Background: night blue, lighter towards the radar.
-  let bg = CGGradient(
-    colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
-    colors: [color(0x1c2a5e).cgColor, color(0x0b1026).cgColor] as CFArray, locations: [0, 1])!
-  ctx.drawRadialGradient(
-    bg, startCenter: CGPoint(x: 640, y: 640), startRadius: 0, endCenter: CGPoint(x: 640, y: 640), endRadius: 900,
-    options: [.drawsAfterEndLocation])
+  // Background: night blue, lighter towards the radar. It fills whatever is around the box too.
+  if parts.contains(.back) {
+    let bg = CGGradient(
+      colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
+      colors: [color(0x1c2a5e).cgColor, color(0x0b1026).cgColor] as CFArray, locations: [0, 1])!
+    ctx.drawRadialGradient(
+      bg, startCenter: CGPoint(x: 640, y: 640), startRadius: 0, endCenter: CGPoint(x: 640, y: 640), endRadius: 900,
+      options: [.drawsAfterEndLocation])
+  }
+  guard parts.contains(.front) else { return ctx.restoreGState() }
 
   // The radar screen.
   let c = CGPoint(x: 630, y: 600)
@@ -126,17 +140,65 @@ func draw(in ctx: CGContext, tile: Bool) {
 }
 
 func png(size: Int, tile: Bool) -> Data {
+  png(width: size, height: size) { ctx in
+    ctx.scaleBy(x: CGFloat(size) / 1024, y: CGFloat(size) / 1024)
+    draw(in: ctx, tile: tile)
+  }
+}
+
+func png(width: Int, height: Int, _ body: (CGContext) -> Void) -> Data {
   let rep = NSBitmapImageRep(
-    bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8, samplesPerPixel: 4,
+    bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4,
     hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
   NSGraphicsContext.saveGraphicsState()
   let ns = NSGraphicsContext(bitmapImageRep: rep)!
   NSGraphicsContext.current = ns
-  let ctx = ns.cgContext
-  ctx.scaleBy(x: CGFloat(size) / 1024, y: CGFloat(size) / 1024)
-  draw(in: ctx, tile: tile)
+  body(ns.cgContext)
   NSGraphicsContext.restoreGraphicsState()
   return rep.representation(using: .png, properties: [:])!
+}
+
+/// A wide tvOS image: the 1024 box centred, `fill` of the height (the background still fills it all).
+func tvPNG(width: Int, height: Int, parts: Parts, fill: CGFloat) -> Data {
+  png(width: width, height: height) { ctx in
+    let s = CGFloat(height) * fill / 1024
+    ctx.translateBy(x: (CGFloat(width) - 1024 * s) / 2, y: (CGFloat(height) - 1024 * s) / 2)
+    ctx.scaleBy(x: s, y: s)
+    draw(in: ctx, tile: false, parts: parts)
+  }
+}
+
+func writeJSON(_ object: [String: Any], to dir: String) throws {
+  try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+  var object = object
+  object["info"] = ["author": "xcode", "version": 1]
+  try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+    .write(to: URL(fileURLWithPath: "\(dir)/Contents.json"))
+}
+
+/// An image set of `width` × `height` points at 1x and 2x, drawn by `draw(width, height)`.
+func tvImageSet(_ dir: String, width: Int, height: Int, _ draw: (Int, Int) -> Data) throws {
+  var images: [[String: String]] = []
+  for scale in [1, 2] {
+    let name = "\(width)x\(height)@\(scale)x.png"
+    try writeJSON([:], to: dir)
+    try draw(width * scale, height * scale).write(to: URL(fileURLWithPath: "\(dir)/\(name)"))
+    images.append(["idiom": "tv", "scale": "\(scale)x", "filename": name])
+  }
+  try writeJSON(["images": images], to: dir)
+}
+
+/// A layered tvOS icon: the radar and dino in front of the night blue.
+func tvImageStack(_ dir: String, width: Int, height: Int) throws {
+  let layers: [(String, Parts)] = [("Front", .front), ("Back", .back)]
+  for (name, parts) in layers {
+    let layer = "\(dir)/\(name).imagestacklayer"
+    try writeJSON([:], to: layer)
+    try tvImageSet("\(layer)/Content.imageset", width: width, height: height) {
+      tvPNG(width: $0, height: $1, parts: parts, fill: 0.9)
+    }
+  }
+  try writeJSON(["layers": layers.map { ["filename": "\($0.0).imagestacklayer"] }], to: dir)
 }
 
 try FileManager.default.createDirectory(atPath: out, withIntermediateDirectories: true)
@@ -155,3 +217,26 @@ let contents: [String: Any] = ["images": images, "info": ["author": "xcode", "ve
 try JSONSerialization.data(withJSONObject: contents, options: [.prettyPrinted, .sortedKeys])
   .write(to: URL(fileURLWithPath: "\(out)/Contents.json"))
 print("wrote \(out)")
+
+let tv = (((out as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent as NSString)
+  .appendingPathComponent("TVAssets.xcassets")
+try? FileManager.default.removeItem(atPath: tv)
+try writeJSON([:], to: tv)
+let brand = "\(tv)/App Icon & Top Shelf Image.brandassets"
+try tvImageStack("\(brand)/App Icon.imagestack", width: 400, height: 240)
+try tvImageStack("\(brand)/App Icon - App Store.imagestack", width: 1280, height: 768)
+for (name, width) in [("Top Shelf Image", 1920), ("Top Shelf Image Wide", 2320)] {
+  try tvImageSet("\(brand)/\(name).imageset", width: width, height: 720) {
+    tvPNG(width: $0, height: $1, parts: .all, fill: 0.8)
+  }
+}
+try writeJSON(
+  [
+    "assets": [
+      ["filename": "App Icon - App Store.imagestack", "idiom": "tv", "role": "primary-app-icon", "size": "1280x768"],
+      ["filename": "App Icon.imagestack", "idiom": "tv", "role": "primary-app-icon", "size": "400x240"],
+      ["filename": "Top Shelf Image Wide.imageset", "idiom": "tv", "role": "top-shelf-image-wide", "size": "2320x720"],
+      ["filename": "Top Shelf Image.imageset", "idiom": "tv", "role": "top-shelf-image", "size": "1920x720"],
+    ]
+  ], to: brand)
+print("wrote \(tv)")

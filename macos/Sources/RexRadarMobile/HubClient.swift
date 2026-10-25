@@ -1,7 +1,10 @@
 import Foundation
 import Observation
 import Security
-import WidgetKit
+
+#if canImport(WidgetKit)
+  import WidgetKit
+#endif
 
 /// A Mac running Rex Radar that this device is paired with.
 struct Hub: Codable, Equatable, Identifiable {
@@ -173,7 +176,9 @@ final class HubClient {
       if hubsChanged { WatchSync.shared.send(shared) }
     #endif
     let rowsChanged = SharedState.write(agents.map(\.row))
-    if hubsChanged || rowsChanged { WidgetCenter.shared.reloadAllTimelines() }
+    #if canImport(WidgetKit)
+      if hubsChanged || rowsChanged { WidgetCenter.shared.reloadAllTimelines() }
+    #endif
   }
 
   /// rexradar:// links: pairing from the Mac's QR code, or opening an agent from the widget.
@@ -354,7 +359,7 @@ enum HubError: LocalizedError {
   case unauthorized, notFound, status(Int), refused(String)
   var errorDescription: String? {
     switch self {
-    case .unauthorized: "The Mac refused the pairing. Scan its code again."
+    case .unauthorized: "The Mac refused the pairing. Pair it again."
     case .notFound: "That Mac doesn't know this agent."
     case .status(let code): "The Mac answered \(code)."
     case .refused(let message): message
