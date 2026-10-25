@@ -34,7 +34,7 @@ final class HubClient {
   private(set) var skillsByHub: [UUID: Bool] = [:]
   private(set) var errors: [UUID: String] = [:]
   private(set) var updated: Date?
-  /// Shown briefly after a tap: "Opened on vv-macbook".
+  /// Shown briefly after a tap: "Opened on my-mac".
   var notice: String?
 
   init() {
