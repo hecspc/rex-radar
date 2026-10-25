@@ -100,6 +100,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     return true
   }
 
+  /// With the Dock icon the app is a regular app, which SwiftUI quits once its last window (the
+  /// main window or the menu bar panel) closes. The watchers and the hub must keep running.
+  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
   func applicationWillTerminate(_ notification: Notification) {
     MainActor.assumeIsolated { Watchers.shared.stopAll() }
   }
