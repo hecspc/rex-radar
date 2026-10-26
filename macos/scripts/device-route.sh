@@ -6,10 +6,11 @@
 #
 #   sudo macos/scripts/device-route.sh install 10.0.50.20 en0 10.0.10.   → launch daemon, route now
 #   sudo macos/scripts/device-route.sh uninstall                         → remove both
-#   macos/scripts/device-route.sh check 10.0.50.20 en0 10.0.10.          → what it would do
+#   macos/scripts/device-route.sh check 10.0.50.20 auto 10.0.10.         → what it would do
 #
 # The last argument is the start of the Mac's address on that network: the route exists only
 # while the interface has such an address, so it doesn't misroute the device's address elsewhere.
+# The interface `auto` is whichever one has such an address, Wi-Fi or Ethernet.
 # The daemon applies it at boot and on every network change. BUNDLE_PREFIX names it (default
 # house.milapan).
 set -eu
@@ -18,10 +19,18 @@ label="${BUNDLE_PREFIX:-house.milapan}.rex-radar.device-route"
 plist="/Library/LaunchDaemons/$label.plist"
 helper="/usr/local/libexec/rex-radar-device-route"
 
+# The interface whose IPv4 address starts with $1, if any.
+home_interface() {
+  for i in $(ifconfig -l); do
+    case "$(ipconfig getifaddr "$i" 2>/dev/null || true)" in "$1"*) echo "$i"; return ;; esac
+  done
+}
+
 has_route() { netstat -rn -f inet | awk -v d="$1" '$1 == d { found = 1 } END { exit !found }'; }
 
 apply() {
   device=$1 interface=$2 prefix=$3 dry=${4:-}
+  if [ "$interface" = auto ]; then interface=$(home_interface "$prefix"); fi
   address=$(ipconfig getifaddr "$interface" 2>/dev/null || true)
   case "$address" in
   "$prefix"*)

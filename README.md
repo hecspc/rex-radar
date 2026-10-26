@@ -202,6 +202,23 @@ of that server ([Remote Access](https://www.superlogical.com/rex/docs/linux/remo
 selects panes, and types into one only to answer a question or send a skill you chose, each behind a setting
 for phones.
 
+### Cloudflare WARP on the Mac
+
+A WARP profile that doesn't exclude the home network sends the Mac's replies into the tunnel, so the iPhone,
+watch and Apple TV pair but then can't reach the hub. The profile seen here excluded only `192.168.0.0/16`, and it
+routed all of `10.0.0.0/8` through WARP, even the Mac's own `10.0.10.0/24`, in pieces more specific than the
+interface's route. Two fixes, both within what the profile allows:
+
+- `warp-cli override local-network allow` returns the Mac's own /24 to the interface, but it ends at every WARP
+  reconnect.
+- Other subnets (VLANs, WireGuard) need routes through the home router that are more specific than WARP's, e.g.
+  `sudo route -n add -net 10.0.50.0/24 10.0.10.1`.
+
+`sudo macos/scripts/warp-lan.sh install <start of the Mac's address, e.g. 10.0.10.> <subnet>…` installs a launch
+daemon that does both while the Mac is on that network, at boot, on every network change and every 5 minutes,
+and removes its routes elsewhere (`uninstall` removes it; `check` shows what it would do). Verified 2026-10-26 with
+WARP 2026.8.2115.0 on macOS 27, the Mac on `10.0.10.0/24`, the TV on `10.0.50.0/24`.
+
 ## Prototype
 
 `watcher/rex-radar.lua` publishes one server's agent panes; `bin/rex-radar` reads every server's snapshot.
@@ -341,9 +358,9 @@ reuses the iOS `HubClient`, like the watch. Skills aren't offered.
   connects (`remotepairingd`: "CUNetLinkManager reported the device as unavailable using ARP"), and ARP never
   crosses subnets. A host route through the Mac's interface makes the TV count as on-link, while the traffic
   still goes through the router: `sudo route -n add -host <tv address> -interface en0`. To keep it across reboots
-  and network changes, `sudo macos/scripts/device-route.sh install <tv address> en0 <start of the Mac's address,
-  e.g. 10.0.10.>` installs a launch daemon that adds the route while the Mac is on that network and removes it
-  elsewhere (`uninstall` removes it; `check` shows what it would do). Proxy ARP on the router isn't needed: the
+  and network changes, `sudo macos/scripts/device-route.sh install <tv address> auto <start of the Mac's address,
+  e.g. 10.0.10.>` (`auto` is whichever interface, Wi-Fi or Ethernet, has that address) installs a launch
+  daemon that adds the route while the Mac is on that network and removes it elsewhere (`uninstall` removes it; `check` shows what it would do). Proxy ARP on the router isn't needed: the
   route alone passed the check with it off. Verified 2026-10-25 with Xcode 27 and tvOS 27.0, the TV on
   `10.0.50.0/24` and the Mac on `10.0.10.0/24`.
 
