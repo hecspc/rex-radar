@@ -188,6 +188,7 @@ struct ManualPairForm: View {
 struct SettingsSheet: View {
   let client: HubClient
   @Environment(\.dismiss) private var dismiss
+  @AppStorage(keepAwakeKey) private var keepAwake = keepAwakeDefault
 
   var body: some View {
     NavigationStack {
@@ -221,6 +222,11 @@ struct SettingsSheet: View {
           Text("Paired Macs")
         } footer: {
           Text("Taps open agents in Rex on the main Mac. An agent on another Mac's own Rex opens on that Mac.")
+        }
+        Section {
+          Toggle("Keep Screen On", isOn: $keepAwake)
+        } footer: {
+          Text("The screen stays on while Rex Radar is open, so the device can stay up as an agent wall.")
         }
         Section("Pair another Mac") {
           Text("On that Mac, open Rex Radar → iPhone & iPad and scan its code with the Camera app.")

@@ -298,6 +298,8 @@ phone open agents in the Mac's Rex.
   main Mac.
 - **Orientation**: portrait and landscape on iPhone and iPad; cards reflow into as many columns as fit, and the
   iPad sidebar sits beside them in landscape and slides over in portrait.
+- **Keep Screen On** (Settings): turns off the idle timer while the app is open, so an iPad can stay up as an
+  agent wall. On by default on iPad, off on iPhone.
 - Verified 2026-10-25 on an iPhone Air (iOS 27), paired by QR over the local network after allowing local
   network access.
 - Verified 2026-10-25 on an iPad Pro 10.5" (2017, iPadOS 17.7.11), the oldest supported release, without Liquid

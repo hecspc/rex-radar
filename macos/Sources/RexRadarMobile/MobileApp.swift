@@ -20,6 +20,7 @@ struct RootView: View {
   @Bindable var client: HubClient
   @Environment(\.scenePhase) private var phase
   @State private var polling: Task<Void, Never>?
+  @AppStorage(keepAwakeKey) private var keepAwake = keepAwakeDefault
 
   var body: some View {
     Group {
@@ -33,8 +34,16 @@ struct RootView: View {
       polling?.cancel()
       if phase == .active { polling = Task { await client.poll() } }
     }
+    .onChange(of: keepAwake, initial: true) { _, on in
+      UIApplication.shared.isIdleTimerDisabled = on
+    }
   }
 }
+
+/// Keeps the screen on while the app is open, so an iPad on a stand works as an
+/// agent wall. On by default on iPad only, since a phone lives in a pocket.
+let keepAwakeKey = "keepAwake"
+@MainActor var keepAwakeDefault: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
 /// For simulators, which this Xcode can't rotate from the command line:
 /// `SIMCTL_CHILD_REXRADAR_ORIENTATION=landscape xcrun simctl launch …`.
