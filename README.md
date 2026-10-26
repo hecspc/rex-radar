@@ -284,6 +284,12 @@ phone open agents in the Mac's Rex.
 - **Pairing**: the Mac window's **Devices** page shows a QR code per address (Tailscale first). Scan it with
   the Camera app: the `rexradar://pair?host=…&token=…` link opens the app and pairs it. The token goes to the
   Keychain. A form takes the address and token by hand.
+- **A new address**: the pairing keeps the Mac's IPv4 address, which changes between Wi-Fi and Ethernet or with
+  a new DHCP lease. When a Mac stops answering there (no connection, not a refusal), the app looks for its
+  `_rexradar._tcp` service by the Mac's name, at most every 30 s, and moves the pairing to the address it
+  finds; the widget and the watch get it from the app. Tailscale addresses (`100.64.0.0/10`) and names are kept,
+  since they work away from home. The Apple TV does the same. Verified 2026-10-26 in the iPhone simulator
+  (iOS 27): paired with the Mac's old Wi-Fi address, it moved to the Ethernet one within seconds.
 - **Local network**: iOS asks once to allow local network access; the app can't reach the Mac on the LAN until it's
   allowed. Over Tailscale the hub is reachable from anywhere, encrypted.
 - **Widget** (Home Screen small/medium/large, Lock Screen circular/rectangular/inline): the app shares its

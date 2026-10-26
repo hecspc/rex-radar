@@ -41,6 +41,8 @@ final class HubClient {
   private(set) var updated: Date?
   /// Shown briefly after a tap: "Opened on my-mac".
   var notice: String?
+  /// When each Mac was last looked up over Bonjour, so an unreachable one isn't browsed for every poll.
+  @ObservationIgnored private var relocatedAt: [UUID: Date] = [:]
 
   init() {
     load()
@@ -150,22 +152,51 @@ final class HubClient {
         let token = tokens[hub.id] ?? nil
         group.addTask { (hub.id, await Self.fetch(hub, token: token)) }
       }
-      for await (id, result) in group {
-        switch result {
-        case .success(let response):
-          agentsByHub[id] = response.rows
-          answeringByHub[id] = response.answering ?? false
-          skillsByHub[id] = response.skills ?? false
-          permissionsByHub[id] = response.permissions ?? false
-          errors[id] = nil
-        case .failure(let error):
-          errors[id] = error.localizedDescription
-        }
-      }
+      for await (id, result) in group { record(result, for: id) }
     }
+    #if !os(watchOS)
+      for id in unreachable { await relocate(id) }
+    #endif
     updated = Date()
     shareWithWidget()
   }
+
+  /// Macs whose last request didn't get through at all (no answer, not a refusal).
+  @ObservationIgnored private var unreachable: Set<UUID> = []
+
+  private func record(_ result: Result<AgentsResponse, Error>, for id: UUID) {
+    unreachable.remove(id)
+    switch result {
+    case .success(let response):
+      agentsByHub[id] = response.rows
+      answeringByHub[id] = response.answering ?? false
+      skillsByHub[id] = response.skills ?? false
+      permissionsByHub[id] = response.permissions ?? false
+      errors[id] = nil
+    case .failure(let error):
+      errors[id] = error.localizedDescription
+      if error is URLError { unreachable.insert(id) }
+    }
+  }
+
+  #if !os(watchOS)
+    /// A Mac that stopped answering at its saved address may have another one now (Wi-Fi and
+    /// Ethernet each get their own, or a new DHCP lease): finds it by its Bonjour name and moves
+    /// the pairing there. The watch gets the new address from the iPhone.
+    private func relocate(_ id: UUID) async {
+      guard let hub = hubs.first(where: { $0.id == id }), Bonjour.canRelocate(hub.host),
+        Date().timeIntervalSince(relocatedAt[id] ?? .distantPast) > 30
+      else { return }
+      relocatedAt[id] = Date()
+      guard let (host, port) = await Bonjour.locate(name: hub.name), host != hub.host || port != hub.port,
+        Bonjour.canRelocate(host), let i = hubs.firstIndex(where: { $0.id == id })
+      else { return }
+      hubs[i].host = host
+      hubs[i].port = port
+      save()
+      record(await Self.fetch(hubs[i], token: Keychain.read(for: id)), for: id)
+    }
+  #endif
 
   /// Hands the paired Macs and the current agents to the widget; wakes it only on a change.
   private func shareWithWidget() {

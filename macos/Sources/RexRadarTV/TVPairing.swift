@@ -17,7 +17,7 @@ final class MacFinder {
 
   func start() {
     guard browser == nil else { return }
-    let browser = NWBrowser(for: .bonjour(type: "_rexradar._tcp", domain: nil), using: .tcp)
+    let browser = NWBrowser(for: .bonjour(type: Bonjour.serviceType, domain: nil), using: .tcp)
     browser.browseResultsChangedHandler = { [weak self] results, _ in
       let macs = results.compactMap { result -> FoundMac? in
         guard case .service(let name, _, _, _) = result.endpoint else { return nil }
@@ -70,7 +70,7 @@ final class PairAttempt {
     var port = 7298
     switch target {
     case .found(let mac):
-      guard let resolved = await Self.resolve(mac.endpoint) else {
+      guard let resolved = await Bonjour.resolve(mac.endpoint) else {
         phase = .failed("Couldn't reach \(mac.name). Is Rex Radar running there?")
         return
       }
@@ -124,51 +124,6 @@ final class PairAttempt {
       throw message.map(HubError.refused) ?? HubError.status(status)
     }
     return data
-  }
-
-  /// The Mac's IPv4 address and port, from a connection to its Bonjour service: the hub's URL
-  /// needs a host, and an IPv6 link-local one wouldn't survive a network change.
-  private nonisolated static func resolve(_ endpoint: NWEndpoint) async -> (String, Int)? {
-    let parameters = NWParameters.tcp
-    (parameters.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options)?.version = .v4
-    let connection = NWConnection(to: endpoint, using: parameters)
-    let once = Once()
-    return await withCheckedContinuation { continuation in
-      let finish: @Sendable ((String, Int)?) -> Void = { result in
-        guard once.claim() else { return }
-        connection.cancel()
-        continuation.resume(returning: result)
-      }
-      connection.stateUpdateHandler = { state in
-        switch state {
-        case .ready:
-          guard case .hostPort(let host, let port) = connection.currentPath?.remoteEndpoint else { return finish(nil) }
-          let name: String
-          switch host {
-          case .ipv4(let address): name = "\(address)"
-          case .ipv6(let address): name = "[\(address)]"
-          case .name(let hostName, _): name = hostName
-          @unknown default: return finish(nil)
-          }
-          finish((String(name.prefix { $0 != "%" }), Int(port.rawValue)))
-        case .failed, .cancelled:
-          finish(nil)
-        default:
-          break
-        }
-      }
-      connection.start(queue: .main)
-      DispatchQueue.main.asyncAfter(deadline: .now() + 6) { finish(nil) }
-    }
-  }
-
-  /// Lets the first of the connection's callbacks and the timeout through. All run on the main queue.
-  private final class Once: @unchecked Sendable {
-    private var done = false
-    func claim() -> Bool {
-      defer { done = true }
-      return !done
-    }
   }
 }
 

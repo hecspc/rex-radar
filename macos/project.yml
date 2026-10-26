@@ -159,6 +159,7 @@ targets:
     sources:
       - path: Sources/RexRadarTV
       - path: Sources/RexRadarMobile/HubClient.swift
+      - path: Sources/RexRadarMobile/Bonjour.swift
       - path: Sources/Shared
         excludes:
           - QuestionsForm.swift
