@@ -25,6 +25,18 @@ final class Store: ObservableObject {
   /// The pane the skill picker is open for, in the panel or window.
   @Published var picking: Row?
 
+  /// Whether the new-session form is open, in the panel or window.
+  @Published var creatingSession = false
+
+  /// Starts the agent in a new Rex session in the folder, and brings it up in Rex. Throws on failure.
+  func newSession(_ agent: SkillAgent, directory: String, server: String?) async throws {
+    let label = clientLabel
+    try await Task.detached { try Rex.newSession(agent, directory: directory, server: server, clientLabel: label) }.value
+    creatingSession = false
+    Rex.activateApp()
+    reload()
+  }
+
   /// The skills the pane's agent offers: read from this Mac's disk for its working directory.
   func skills(for row: Row) async throws -> [Skill] {
     guard let agent = row.skillAgent, row.server == nil else { throw SkillError.unsupported }

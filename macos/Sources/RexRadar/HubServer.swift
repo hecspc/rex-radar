@@ -12,6 +12,8 @@ import Network
 ///   GET  /v1/skills?id=<row> → the skills its agent offers in that pane ([Skill])
 ///   POST /v1/skill?id=<row>  → types one into it (body: SkillRequest); both only when Settings
 ///                              allows it
+///   POST /v1/session         → starts an agent in a new Rex session (body: NewSessionRequest);
+///                              only when Settings allows it
 ///   POST /v1/open?id=<row>   → shows that pane in Rex here (body: the row, for agents another Mac
 ///                              watches on a server this Mac reaches by address)
 ///   POST /v1/pair            → a device without a camera (Apple TV) asks to pair (body:
@@ -119,7 +121,8 @@ final class HubServer: ObservableObject {
       let body = AgentsResponse(
         host: hostName, sources: store.sources, rows: store.rows, writtenAt: Date(),
         answering: Preferences.shared.allowPhoneAnswers, skills: Preferences.shared.allowPhoneSkills,
-        permissions: Preferences.shared.allowPhonePermissions)
+        permissions: Preferences.shared.allowPhonePermissions, sessions: Preferences.shared.allowPhoneSessions,
+        servers: Watchers.shared.servers.map(\.name))
       send(connection, 200, body)
     case ("POST", "/v1/open"):
       let id = target?.queryItems?.first { $0.name == "id" }?.value
@@ -200,6 +203,26 @@ final class HubServer: ObservableObject {
       Task {
         do {
           try await store.sendSkill(row, request)
+          send(connection, 200, ["ok": "true"])
+        } catch {
+          send(connection, 409, ["error": error.localizedDescription])
+        }
+      }
+    case ("POST", "/v1/session"):
+      guard Preferences.shared.allowPhoneSessions else {
+        return send(connection, 403, ["error": "Starting sessions from iPhone & iPad is off in Rex Radar's Settings on this Mac."])
+      }
+      guard let request = try? JSONDecoder().decode(NewSessionRequest.self, from: body),
+        let agent = SkillAgent(rawValue: request.agent), request.directory.count <= 1024
+      else { return send(connection, 400, ["error": "bad session"]) }
+      let servers = Watchers.shared.servers
+      let named = request.server.map { name in servers.first { $0.name == name } }
+      guard let server = named ?? servers.first(where: \.isLocal) else {
+        return send(connection, 404, ["error": "This Mac doesn't watch a server called \(request.server ?? "mac")."])
+      }
+      Task {
+        do {
+          try await store.newSession(agent, directory: request.directory, server: server.address)
           send(connection, 200, ["ok": "true"])
         } catch {
           send(connection, 409, ["error": error.localizedDescription])

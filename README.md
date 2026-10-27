@@ -31,6 +31,8 @@ its questions and send agents skills, from wherever you are.
   forms) from the Mac, iPhone, iPad, watch or Apple TV.
 - **Send skills**: pick any skill or slash command Claude Code, Codex, Antigravity or Qoder offers in a pane
   (project, user and plugin), filtered as you type, and send it with arguments.
+- **New session**: start Claude Code, Codex, Antigravity or Qoder in a new Rex session in a folder, from the Mac,
+  iPhone or iPad.
 - **Widgets and complications** on the Mac desktop, Home and Lock Screen, and the watch face.
 - **Apple TV**: a full-screen grid of your agents for the wall, paired by allowing it on the Mac.
 
@@ -262,6 +264,19 @@ macos/bundle.sh --install                                     # app only, comman
 - **Panel** (Liquid Glass): the most urgent agent as a card with **Open in Rex** and **Skill**, the others in a card
   per server (right-click one for **Send Skill…**). Opening a pane closes the panel.
 - **Window**: a server sidebar and a card per agent.
+- **New Session** (**+** in the panel and the window's toolbar): picks an agent (Claude Code by default), a folder
+  (`~` by default) and, with several servers, the server, then runs `rex new <folder name> -c <folder>` and shows the
+  session in Rex. Verified on 2026-10-27 with Claude Code 2.1.310, Codex 0.164.0, Antigravity 1.4.7 and Qoder
+  1.1.78:
+  - `rex new -c` doesn't expand `~` and starts in the home folder when the folder is missing, so the app expands
+    and checks a folder on this Mac. On another server a `~/…` folder is entered with `cd` instead.
+  - Rex starts the command in a login shell, which skips `.zshrc`, so `agy` and `qodercli` in `~/.local/bin` weren't
+    found. The agent runs through `$SHELL -ic` to get the PATH a normal tab has.
+  - Test without clicking: `RexRadar --new-session claude-code|codex|antigravity|qoder <folder>`.
+  - iPhone and iPad: **+** at the top of the agent list, once a paired Mac turns on Settings → **Let iPhone & iPad start new
+    sessions** (off by default). The phone sends `POST /v1/session` with the agent, the folder and the server's name;
+    the Mac starts it as above and shows it in its Rex. `SIMCTL_CHILD_REXRADAR_SHOW_NEW_SESSION=1` opens the form in
+    a simulator.
 - **Dock and menu bar**: Settings → **Show Rex Radar in** picks the Dock, the menu bar, or both (the default).
   Clicking the Dock icon opens the window; without the menu bar icon the window also opens at launch.
 - **Widget** (small, medium, large): agents by urgency; tap one to open it in Rex (`rexradar://open?id=…`).
@@ -279,7 +294,7 @@ iPhone, with the same glass cards. It talks to the Mac app, which is the hub (th
 phone open agents in the Mac's Rex.
 
 - **Hub** (in the Mac app): HTTP on port 7298, `GET /v1/agents`, `POST /v1/open?id=…`, `POST /v1/answer?id=…`,
-  `POST /v1/permission?id=…`, `GET /v1/skills?id=…` and `POST /v1/skill?id=…`, every request with
+  `POST /v1/permission?id=…`, `GET /v1/skills?id=…`, `POST /v1/skill?id=…` and `POST /v1/session`, every request with
   `Authorization: Bearer <token>`; advertised over Bonjour as `_rexradar._tcp`.
 - **Pairing**: the Mac window's **Devices** page shows a QR code per address (Tailscale first). Scan it with
   the Camera app: the `rexradar://pair?host=…&token=…` link opens the app and pairs it. The token goes to the

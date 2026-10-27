@@ -2,13 +2,14 @@ import AppKit
 
 /// `RexRadar --answer <block id> '<answers json>'` answers a pane's question list, and
 /// `RexRadar --decide <block id> allow|deny` its agent's permission prompt, and
-/// `RexRadar --skill <block id> list|'<SkillRequest json>'` lists or sends a skill, the way the
-/// app's buttons do; it prints the outcome and quits. For testing without clicking.
+/// `RexRadar --skill <block id> list|'<SkillRequest json>'` lists or sends a skill, and
+/// `RexRadar --new-session claude-code|codex|antigravity|qoder <folder>` starts an agent in a new
+/// session on this Mac's Rex, the way the app's buttons do; it prints the outcome and quits. For testing without clicking.
 @MainActor
 enum AnswerCommand {
   static var arguments: (flag: String, block: String, value: String)? {
     let args = CommandLine.arguments
-    for flag in ["--answer", "--decide", "--skill"] {
+    for flag in ["--answer", "--decide", "--skill", "--new-session"] {
       if let i = args.firstIndex(of: flag), i + 2 < args.count { return (flag, args[i + 1], args[i + 2]) }
     }
     return nil
@@ -19,7 +20,11 @@ enum AnswerCommand {
       let store = Store.shared
       store.reload()
       do {
-        if flag == "--decide" {
+        if flag == "--new-session" {
+          guard let agent = SkillAgent(rawValue: block) else { throw SkillError.unsupported }
+          try await store.newSession(agent, directory: value, server: nil)
+          print("started")
+        } else if flag == "--decide" {
           // The screen prompt of an agent that sends no message (Codex) is read in the background.
           try? await Task.sleep(for: .seconds(1.5))
           store.reload()

@@ -17,6 +17,9 @@ enum Render {
     await snap(MenuPanel(store: store), size: nil, to: dir.appendingPathComponent("panel.png"))
     await snap(MainWindow(store: store), size: NSSize(width: 860, height: 560), to: dir.appendingPathComponent("window.png"))
     await snap(SettingsView(prefs: .shared), size: nil, to: dir.appendingPathComponent("settings.png"))
+    store.creatingSession = true
+    await snap(MenuPanel(store: store), size: nil, to: dir.appendingPathComponent("panel-new-session.png"))
+    store.creatingSession = false
     if let row = store.rows.first(where: \.takesSkills) {
       store.picking = row
       // The picker reads the skills first.

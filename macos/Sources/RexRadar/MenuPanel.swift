@@ -11,7 +11,13 @@ struct MenuPanel: View {
     GlassEffectContainer(spacing: 12) {
       VStack(alignment: .leading, spacing: 12) {
         header
-        if let (row, draft) = store.answering {
+        if store.creatingSession {
+          GlassCard(padding: 16) {
+            NewSessionForm(
+              servers: Watchers.shared.servers, start: { try await store.newSession($0, directory: $1, server: $2) },
+              cancel: { store.creatingSession = false })
+          }
+        } else if let (row, draft) = store.answering {
           GlassCard(padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
               Text("\(row.pane.session ?? "Session") · \(row.tabLabel)").font(.subheadline).foregroundStyle(.secondary)
@@ -56,6 +62,7 @@ struct MenuPanel: View {
         }
       }
       Spacer()
+      CircleButton(symbol: "plus", help: "New Session") { store.creatingSession = true }
       CircleButton(symbol: "arrow.clockwise", help: "Reload") { store.reload() }
       CircleButton(symbol: "macwindow", help: "Open Rex Radar") { showWindow() }
       CircleButton(symbol: "gearshape", help: "Settings") {

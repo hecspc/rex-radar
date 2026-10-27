@@ -45,6 +45,11 @@ final class Preferences: ObservableObject {
     didSet { UserDefaults.standard.set(allowPhonePermissions, forKey: "allowPhonePermissions") }
   }
 
+  /// Off by default: a new agent can be told to do anything.
+  @Published var allowPhoneSessions: Bool {
+    didSet { UserDefaults.standard.set(allowPhoneSessions, forKey: "allowPhoneSessions") }
+  }
+
   @Published var presence: AppPresence {
     didSet {
       UserDefaults.standard.set(presence.rawValue, forKey: "presence")
@@ -58,6 +63,7 @@ final class Preferences: ObservableObject {
     presence = UserDefaults.standard.string(forKey: "presence").flatMap(AppPresence.init) ?? .dockAndMenuBar
     allowPhoneAnswers = UserDefaults.standard.bool(forKey: "allowPhoneAnswers")
     allowPhoneSkills = UserDefaults.standard.bool(forKey: "allowPhoneSkills")
+    allowPhoneSessions = UserDefaults.standard.bool(forKey: "allowPhoneSessions")
     allowPhonePermissions = UserDefaults.standard.bool(forKey: "allowPhonePermissions")
     clientLabel = UserDefaults.standard.string(forKey: "clientLabel") ?? Host.current().localizedName ?? ""
   }
@@ -144,6 +150,16 @@ struct SettingsView: View {
             + "Antigravity and Qoder, $skill for Codex), then submits it. Rex Radar only sends skills the agent offers "
             + "in that pane, one line, and never while the agent waits on a question or a permission, nor while Qoder "
             + "works, since it can't queue them.")
+      }
+
+      Section {
+        Toggle("Let iPhone & iPad start new sessions", isOn: $prefs.allowPhoneSessions)
+      } header: {
+        Text("New Sessions")
+      } footer: {
+        Text(
+          "Starts Claude Code, Codex, Antigravity or Qoder in a new Rex session in the folder the phone names, on "
+            + "this Mac's Rex or a server it watches, and shows it in Rex here.")
       }
 
       Section {

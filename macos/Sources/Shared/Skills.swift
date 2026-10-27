@@ -1,11 +1,24 @@
 import Foundation
 
 /// The agents Rex Radar sends skills to, by Rex app id, and how each takes one at its prompt.
-enum SkillAgent: String {
+enum SkillAgent: String, CaseIterable, Identifiable {
   case claudeCode = "claude-code"
   case codex
   case antigravity
   case qoder
+
+  var id: String { rawValue }
+  var title: String { Pane.appLabel(rawValue) }
+
+  /// The command that starts the agent in a new pane.
+  var command: String {
+    switch self {
+    case .claudeCode: "claude"
+    case .codex: "codex"
+    case .antigravity: "agy"
+    case .qoder: "qodercli"
+    }
+  }
 
   /// What goes before a skill's name: Codex mentions skills as `$name`, the others run `/name`.
   var sigil: String { self == .codex ? "$" : "/" }

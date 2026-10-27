@@ -44,6 +44,17 @@ struct MainWindow: View {
     .onChange(of: hub.waitingPairRequests.map(\.id), initial: true) { _, waiting in
       if !waiting.isEmpty { model.selection = Self.devices }
     }
+    .toolbar {
+      Button { store.creatingSession = true } label: { Label("New Session", systemImage: "plus") }
+        .help("Start an agent in a new Rex session")
+    }
+    .sheet(isPresented: $store.creatingSession) {
+      NewSessionForm(
+        servers: Watchers.shared.servers, start: { try await store.newSession($0, directory: $1, server: $2) },
+        cancel: { store.creatingSession = false })
+        .padding(24)
+        .frame(width: 420)
+    }
     .sheet(isPresented: Binding(get: { store.answering != nil }, set: { if !$0 { store.stopAnswering() } })) {
       if let (row, draft) = store.answering {
         ScrollView {

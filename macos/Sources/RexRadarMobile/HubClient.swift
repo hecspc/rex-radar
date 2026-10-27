@@ -37,6 +37,8 @@ final class HubClient {
   private(set) var skillsByHub: [UUID: Bool] = [:]
   /// Per Mac: whether it lets this device allow or deny agents' permissions (its Settings).
   private(set) var permissionsByHub: [UUID: Bool] = [:]
+  /// Per Mac that lets this device start sessions (its Settings): the Rex servers it can start them on.
+  private(set) var sessionServersByHub: [UUID: [String]] = [:]
   private(set) var errors: [UUID: String] = [:]
   private(set) var updated: Date?
   /// Shown briefly after a tap: "Opened on my-mac".
@@ -136,6 +138,7 @@ final class HubClient {
     defer { shareWithWidget() }
     hubs.removeAll { $0.id == hub.id }
     agentsByHub[hub.id] = nil
+    sessionServersByHub[hub.id] = nil
     errors[hub.id] = nil
     Keychain.write(nil, for: hub.id)
     if mainID == hub.id { mainID = hubs.first?.id }
@@ -172,6 +175,7 @@ final class HubClient {
       answeringByHub[id] = response.answering ?? false
       skillsByHub[id] = response.skills ?? false
       permissionsByHub[id] = response.permissions ?? false
+      sessionServersByHub[id] = response.sessions == true ? (response.servers ?? []) : nil
       errors[id] = nil
     case .failure(let error):
       errors[id] = error.localizedDescription
@@ -312,6 +316,27 @@ final class HubClient {
     Task {
       await refresh()
       try? await Task.sleep(for: .seconds(2.5))
+      notice = nil
+    }
+  }
+
+  // MARK: New sessions
+
+  /// The Macs that let this device start sessions, main one first.
+  var sessionHubs: [Hub] {
+    let allowing = hubs.filter { sessionServersByHub[$0.id] != nil }
+    return allowing.filter { $0.id == main?.id } + allowing.filter { $0.id != main?.id }
+  }
+
+  /// Asks the Mac to start the agent in a new Rex session; it shows the session in its Rex.
+  func newSession(on hub: Hub, _ request: NewSessionRequest) async throws {
+    guard let url = hub.base?.appending(path: "v1/session") else { throw HubError.notFound }
+    _ = try await Self.request(url, method: "POST", token: Keychain.read(for: hub.id), body: try JSONEncoder().encode(request))
+    notice = "Started \(Pane.appLabel(request.agent)) on \(hub.name)"
+    Task {
+      try? await Task.sleep(for: .seconds(1))
+      await refresh()
+      try? await Task.sleep(for: .seconds(1.5))
       notice = nil
     }
   }

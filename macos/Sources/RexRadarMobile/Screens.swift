@@ -79,6 +79,7 @@ struct AgentList: View {
   let title: String
   @State private var answering: Agent?
   @State private var picking: Agent?
+  @State private var showNewSession = false
 
   var body: some View {
     ScrollView {
@@ -117,6 +118,21 @@ struct AgentList: View {
       let env = ProcessInfo.processInfo.environment
       if env["REXRADAR_SHOW_ANSWER"] == "1", answering == nil { answering = agents.first(where: client.canAnswer) }
       if env["REXRADAR_SHOW_SKILLS"] == "1", picking == nil { picking = agents.first(where: client.canSendSkill) }
+    }
+    .sheet(isPresented: $showNewSession) { NewSessionSheet(client: client) }
+    // For simulators: `SIMCTL_CHILD_REXRADAR_SHOW_NEW_SESSION=1` opens the form once a Mac allows it.
+    .task(id: client.sessionHubs.map(\.id)) {
+      if ProcessInfo.processInfo.environment["REXRADAR_SHOW_NEW_SESSION"] == "1", !client.sessionHubs.isEmpty {
+        showNewSession = true
+      }
+    }
+    .toolbar {
+      if !client.sessionHubs.isEmpty {
+        ToolbarItem(placement: .primaryAction) {
+          Button { showNewSession = true } label: { Image(systemName: "plus") }
+            .accessibilityLabel("New Session")
+        }
+      }
     }
     .navigationTitle(title)
     .toolbarTitleDisplayMode(.inline)
@@ -295,6 +311,84 @@ struct SkillSheet: View {
       .navigationTitle(agent.row.pane.session ?? "Skills")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+    }
+  }
+}
+
+/// Starts an agent in a new Rex session on a Mac that allows it, in a folder on that Mac.
+struct NewSessionSheet: View {
+  let client: HubClient
+  @Environment(\.dismiss) private var dismiss
+  @State private var hubID: UUID?
+  @State private var server = ""
+  @State private var agent = SkillAgent.claudeCode
+  @State private var directory = "~"
+  @State private var starting = false
+  @State private var error: String?
+
+  private var hub: Hub? { client.sessionHubs.first { $0.id == hubID } ?? client.sessionHubs.first }
+  private var servers: [String] { hub.flatMap { client.sessionServersByHub[$0.id] } ?? [] }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section {
+          Picker("Agent", selection: $agent) {
+            ForEach(SkillAgent.allCases) { Text($0.title).tag($0) }
+          }
+          LabeledContent("Folder") {
+            TextField("Folder", text: $directory, prompt: Text("~"))
+              .multilineTextAlignment(.trailing)
+              .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+              .onSubmit(start)
+          }
+        } footer: {
+          Text("A folder on that Mac, or on the Rex server you pick. The session is named after it.")
+        }
+        if client.sessionHubs.count > 1 || servers.count > 1 {
+          Section {
+            if client.sessionHubs.count > 1 {
+              Picker("Mac", selection: Binding(get: { hub?.id }, set: { hubID = $0; server = "" })) {
+                ForEach(client.sessionHubs) { Text($0.name).tag(Optional($0.id)) }
+              }
+            }
+            if servers.count > 1 {
+              Picker("Rex Server", selection: $server) {
+                ForEach(servers, id: \.self) { Text($0).tag($0) }
+              }
+            }
+          }
+        }
+        if let error {
+          Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
+        }
+      }
+      .navigationTitle("New Session")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        ToolbarItem(placement: .confirmationAction) {
+          if starting { ProgressView() } else { Button("Start", action: start) }
+        }
+      }
+      .onAppear { if server.isEmpty { server = servers.first ?? "" } }
+      .onChange(of: hub?.id) { server = servers.first ?? "" }
+    }
+  }
+
+  private func start() {
+    guard let hub, !starting else { return }
+    starting = true
+    error = nil
+    let request = NewSessionRequest(agent: agent.rawValue, directory: directory, server: server.isEmpty ? nil : server)
+    Task {
+      do {
+        try await client.newSession(on: hub, request)
+        dismiss()
+      } catch {
+        self.error = error.localizedDescription
+      }
+      starting = false
     }
   }
 }

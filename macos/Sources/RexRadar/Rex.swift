@@ -66,7 +66,12 @@ enum Rex {
   static func open(_ row: Row, clientLabel: String?) throws {
     let p = row.pane
     _ = try call("session.focus_block", ["session_id": p.sessionId, "block_id": p.blockId], server: row.server)
-    let list = try call("client.list", [:], server: row.server) as? [String: Any]
+    try select(session: p.sessionId, window: p.windowId, server: row.server, clientLabel: clientLabel)
+  }
+
+  /// Asks the Rex apps on the server (or only the one labelled `clientLabel`) to show the tab.
+  private static func select(session: String, window: String, server: String?, clientLabel: String?) throws {
+    let list = try call("client.list", [:], server: server) as? [String: Any]
     let clients = (list?["clients"] as? [[String: Any]] ?? []).filter { c in
       let info = c["info"] as? [String: Any]
       guard info?["kind"] as? String == "app" else { return false }
@@ -79,11 +84,56 @@ enum Rex {
       _ = try call(
         "client.perform",
         [
-          "client_id": id, "session_id": p.sessionId, "action": "session.select",
-          "args": ["session_id": p.sessionId, "window_id": p.windowId],
+          "client_id": id, "session_id": session, "action": "session.select",
+          "args": ["session_id": session, "window_id": window],
         ],
-        server: row.server)
+        server: server)
     }
+  }
+
+  // MARK: New sessions
+
+  /// Starts the agent in a new session named after the folder, and shows it. `rex new -c` neither
+  /// expands `~` nor fails on a missing folder (it starts in the home folder, as of 2026-10-27), so
+  /// a folder on this Mac is checked first, and a `~` path on another server is entered with `cd`.
+  /// The agent runs through an interactive shell: Rex's login shell skips `.zshrc`, where PATH may
+  /// gain `~/.local/bin` (agy, qodercli).
+  static func newSession(_ agent: SkillAgent, directory: String, server: String?, clientLabel: String?) throws {
+    let local = server?.isEmpty ?? true
+    var path = directory.trimmingCharacters(in: .whitespaces)
+    if path.isEmpty { path = "~" }
+    var args = ["new"]
+    var line = "exec \"${SHELL:-/bin/sh}\" -ic 'exec \(agent.command)'"
+    if local {
+      path = (path as NSString).expandingTildeInPath
+      var isDirectory: ObjCBool = false
+      guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+        throw Failure.call("No folder at \(path)")
+      }
+      args += [sessionLabel(path), "-c", path]
+    } else if path == "~" || path.hasPrefix("~/") {
+      args.append(sessionLabel(path))
+      let rest = path.dropFirst(path == "~" ? 1 : 2)
+      if !rest.isEmpty {
+        line = "cd \"$HOME\"/'" + rest.replacingOccurrences(of: "'", with: "'\\''") + "' && " + line
+      }
+    } else {
+      args += [sessionLabel(path), "-c", path]
+    }
+    let out = try run(args + ["--json", "--", "/bin/sh", "-c", line], server: server)
+    guard let created = try JSONSerialization.jsonObject(with: out) as? [String: Any],
+      let session = created["session_id"] as? String,
+      let window = (created["initial_windows"] as? [[String: Any]])?.first?["window_id"] as? String
+    else { throw Failure.call("Rex didn't say which session it made") }
+    try select(session: session, window: window, server: server, clientLabel: clientLabel)
+  }
+
+  /// The folder's name, as sessions name their project; "home" for the home folder.
+  private static func sessionLabel(_ path: String) -> String {
+    let name = (path as NSString).lastPathComponent
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    if name == "/" { return "root" }
+    return name == "~" || path == home ? "home" : name
   }
 
   // MARK: Answering questions
