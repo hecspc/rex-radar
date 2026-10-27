@@ -3,8 +3,8 @@ import AppKit
 /// `RexRadar --answer <block id> '<answers json>'` answers a pane's question list, and
 /// `RexRadar --decide <block id> allow|deny` its agent's permission prompt, and
 /// `RexRadar --skill <block id> list|'<SkillRequest json>'` lists or sends a skill, and
-/// `RexRadar --new-session claude-code|codex|antigravity|qoder <folder>` starts an agent in a new
-/// session on this Mac's Rex, the way the app's buttons do; it prints the outcome and quits. For testing without clicking.
+/// `RexRadar --new-session claude-code|codex|antigravity|qoder|pi <folder>` starts an agent in a
+/// new session on this Mac's Rex, the way the app's buttons do; it prints the outcome and quits. For testing without clicking.
 @MainActor
 enum AnswerCommand {
   static var arguments: (flag: String, block: String, value: String)? {

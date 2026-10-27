@@ -47,7 +47,7 @@ struct AgentIcon: View {
   }
 }
 
-/// The agent's icon, then its name: Claude Code, Codex, Antigravity, Qoder.
+/// The agent's icon, then its name: Claude Code, Codex, Antigravity, Qoder, Pi.
 struct AppBadge: View {
   let row: Row
   var size: CGFloat = 14

@@ -35,6 +35,15 @@ extension Row {
   var topic: String? {
     guard let title = pane.title?.trimmingCharacters(in: .whitespaces), !title.isEmpty, title != "Claude Code"
     else { return nil }
+    if pane.app == "pi" {
+      // Pi titles read "π - <session name> - <folder>", and "π - <folder>" until the session
+      // has a name.
+      guard title.hasPrefix("π - ") else { return nil }
+      var parts = title.dropFirst(4).components(separatedBy: " - ")
+      guard parts.count > 1 else { return nil }
+      parts.removeLast()
+      return parts.joined(separator: " - ")
+    }
     // Claude and Codex put a spinner, ✳ or "[ ! ]" in front of the topic.
     let trimmed = String(title.drop { !$0.isLetter && !$0.isNumber })
     if pane.app == "qoder" {
@@ -72,6 +81,7 @@ extension Row {
     case "codex": "AgentCodex"
     case "antigravity": "AgentAntigravity"
     case "qoder": "AgentQoder"
+    case "pi": "AgentPi"
     default: nil
     }
   }
@@ -84,6 +94,7 @@ extension Row {
     case "codex": "curlybraces"
     case "antigravity": "arrow.up.circle"
     case "qoder": "q.circle"
+    case "pi": "p.circle"
     default: "cpu"
     }
   }
@@ -94,6 +105,7 @@ extension Row {
     case "codex": Color(red: 0.16, green: 0.70, blue: 0.64)
     case "antigravity": Color(red: 0.26, green: 0.52, blue: 0.96)
     case "qoder": Color(red: 0.16, green: 0.78, blue: 0.47)
+    case "pi": .primary
     default: .secondary
     }
   }
@@ -107,6 +119,7 @@ extension Pane {
     case "codex": "Codex"
     case "antigravity": "Antigravity"
     case "qoder": "Qoder"
+    case "pi": "Pi"
     case let app?: app
     case nil: "Agent"
     }

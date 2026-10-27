@@ -29,9 +29,9 @@ its questions and send agents skills, from wherever you are.
 - **Open in Rex**: click or tap an agent to switch your Mac's Rex app to its pane, on any of your Rex servers.
 - **Answer agents' questions** (Claude Code's and Qoder's AskUserQuestion, Codex's and Antigravity's question
   forms) from the Mac, iPhone, iPad, watch or Apple TV.
-- **Send skills**: pick any skill or slash command Claude Code, Codex, Antigravity or Qoder offers in a pane
+- **Send skills**: pick any skill or slash command Claude Code, Codex, Antigravity, Qoder or Pi offers in a pane
   (project, user and plugin), filtered as you type, and send it with arguments.
-- **New session**: start Claude Code, Codex, Antigravity or Qoder in a new Rex session in a folder, from the Mac,
+- **New session**: start Claude Code, Codex, Antigravity, Qoder or Pi in a new Rex session in a folder, from the Mac,
   iPhone or iPad.
 - **Widgets and complications** on the Mac desktop, Home and Lock Screen, and the watch face.
 - **Apple TV**: a full-screen grid of your agents for the wall, paired by allowing it on the Mac.
@@ -40,7 +40,8 @@ its questions and send agents skills, from wherever you are.
 
 - Rex (beta) on a Mac running macOS 26, with **Remote Control** on in the Rex app's settings.
 - Claude Code 2.1.310 or later, which reports its status to Rex. Codex (Rex detects its status itself),
-  Antigravity (`agy`, reports its own) and Qoder (`qodercli`, through `hooks/qoder-rex-status`) show up too. Other
+  Antigravity (`agy`, reports its own), Qoder (`qodercli`, through `hooks/qoder-rex-status`) and
+  [Pi](https://pi.dev) (`pi`, reports its own) show up too. Other
   agents show up if they report [program status](https://www.superlogical.com/rex/docs/build/program-status).
 - To build: Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
   For the widgets, the iOS app and the watch app, an Apple Development team (a free Personal Team works for your
@@ -106,9 +107,10 @@ versions, in this README.
 [MIT](LICENSE)
 
 The agent logos in `macos/Resources/AgentIcons.xcassets` are trademarks of their owners (Claude Code: Anthropic;
-Codex: OpenAI; Antigravity: Google; Qoder: Qoder), used only to show which agent runs in a pane. They're rendered from
-[lobehub/icons](https://github.com/lobehub/icons) (`@lobehub/icons-static-svg` 1.100.0, MIT) and aren't covered
-by this project's licence.
+Codex: OpenAI; Antigravity: Google; Qoder: Qoder; Pi: Earendil), used only to show which agent runs in a pane. They're
+rendered from [lobehub/icons](https://github.com/lobehub/icons) (`@lobehub/icons-static-svg` 1.100.0, MIT), except
+Pi's, which is Rex's own program glyph for Pi (`block-glyph-pi` in the Rex app's `SuperBlockIcons` bundle), and
+aren't covered by this project's licence.
 
 # Design notes
 
@@ -116,8 +118,9 @@ by this project's licence.
 
 A sidebar like Rex's own: servers → sessions → tabs → panes. Each pane running an agent shows:
 
-- **Agent**: its logo, then its name: Claude Code, Codex, Antigravity and Qoder (`Resources/AgentIcons.xcassets`;
-  Qoder's has a white variant for dark mode, since its logo's dark half is drawn in the text colour); any
+- **Agent**: its logo, then its name: Claude Code, Codex, Antigravity, Qoder and Pi
+  (`Resources/AgentIcons.xcassets`; Qoder's and Pi's have a white variant for dark mode, since their logos are
+  drawn in the text colour); any
   other agent, and the SwiftPM build (no asset catalog), get a grey chip symbol instead.
 - **State**: idle, working, blocked (permission, question or auth), done or error.
 - **Summary**: one line about what the agent did or needs.
@@ -181,8 +184,16 @@ permission no hook runs until Stop, so the card stays blocked until Qoder finish
 title is `◇ <topic> | Ready` (`✦ … | Working`), and `Qoder CLI | Ready` before the first prompt; the topic
 drops the status.
 
+**Pi (`pi`) reports its own status**, with no Rex hook (`rex skill setup --agent pi` installs only the skill:
+"Pi has no command hooks"). Verified 2026-10-27 with Pi 1.4.0: `app=pi`, `idle` at start, `working` (the session
+name in `msg`), `done` (the session name again, never the reply), `error` with the error's first line, and
+`blocked` while an extension dialog or a login (`kind=auth`) waits. Its project
+trust prompt at start reports nothing. Pi has no permission prompts and no question tool, so there's nothing to
+allow or answer. Its terminal title is `π - <session name> - <folder>` (`/name` sets the session name), and
+`π - <folder>` before that; the topic is the session name, and with none the card shows no summary.
+
 Codex (in Plan mode), Antigravity and Qoder also report `blocked` with `kind=question` while they ask; see
-[Answering questions](#answering-questions). Answering, permissions and skills work for all four.
+[Answering questions](#answering-questions). Answering, permissions and skills work for all four; Pi takes skills too.
 
 ### Opening a tab in the right app
 
@@ -266,13 +277,13 @@ macos/bundle.sh --install                                     # app only, comman
 - **Window**: a server sidebar and a card per agent.
 - **New Session** (**+** in the panel and the window's toolbar): picks an agent (Claude Code by default), a folder
   (`~` by default) and, with several servers, the server, then runs `rex new <folder name> -c <folder>` and shows the
-  session in Rex. Verified on 2026-10-27 with Claude Code 2.1.310, Codex 0.164.0, Antigravity 1.4.7 and Qoder
-  1.1.78:
+  session in Rex. Verified on 2026-10-27 with Claude Code 2.1.310, Codex 0.164.0, Antigravity 1.4.7, Qoder
+  1.1.78 and Pi 1.4.0:
   - `rex new -c` doesn't expand `~` and starts in the home folder when the folder is missing, so the app expands
     and checks a folder on this Mac. On another server a `~/…` folder is entered with `cd` instead.
   - Rex starts the command in a login shell, which skips `.zshrc`, so `agy` and `qodercli` in `~/.local/bin` weren't
     found. The agent runs through `$SHELL -ic` to get the PATH a normal tab has.
-  - Test without clicking: `RexRadar --new-session claude-code|codex|antigravity|qoder <folder>`.
+  - Test without clicking: `RexRadar --new-session claude-code|codex|antigravity|qoder|pi <folder>`.
   - iPhone and iPad: **+** at the top of the agent list, once a paired Mac turns on Settings → **Let iPhone & iPad start new
     sessions** (off by default). The phone sends `POST /v1/session` with the agent, the folder and the server's name;
     the Mac starts it as above and shows it in its Rex. `SIMCTL_CHILD_REXRADAR_SHOW_NEW_SESSION=1` opens the form in
@@ -476,8 +487,8 @@ the agent idle. Qoder 1.1.78 puts "1. Allow once" first (then "Always allow…",
 
 ### Sending skills
 
-Any Claude Code, Codex, Antigravity or Qoder pane on the Mac's own Rex server can be sent a skill from the Mac panel, the
-window, iPhone and iPad (not the watch or Apple TV): **Skill** on its card opens a picker that filters as you type
+Any Claude Code, Codex, Antigravity, Qoder or Pi pane on the Mac's own Rex server can be sent a skill from the Mac panel,
+the window, iPhone and iPad (not the watch or Apple TV): **Skill** on its card opens a picker that filters as you type
 (every word must appear in the name or description; Return picks the first match), grouped **Project**, **User**
 and **Plugins**, then takes optional arguments.
 
@@ -514,6 +525,14 @@ and **Plugins**, then takes optional arguments.
     completes the full one), and the commands its manifest's `commands` map names as `/<plugin>:<key>`
     (`/slack:slack-standup`). `user-invocable: false` skills are left out (the menu hides them; `skills list`
     doesn't), and so are its bundled skills and commands (`/review`, `/imagegen`, `/sites-…`).
+  - **Pi**, `/name` for prompt templates and `/skill:name` for skills. Pi's discovery depends on its settings
+    (`skills`, `prompts`), packages and project trust, so instead of reading the disk the Mac asks Pi: it runs
+    `pi --mode rpc --no-session --no-extensions` in the working directory (through `$SHELL -ic`, for the PATH),
+    sends `{"type":"get_commands"}` and lists the prompts and skills it answers with (0.5 s on 1.4.0). Project ones
+    (`.pi/prompts`, `.pi/skills`, `.agents/skills` up to the repository root) come only for a project trusted in
+    `~/.pi/agent/trust.json`, which a "this session only" trust isn't; a package's are grouped under **Plugins**.
+    Extensions stay off for that run, because they run code as they load (the built-in MCP extension connects
+    its servers), so extension commands (`/mcp`, …) and Pi's built-in commands aren't listed.
 - **Sending**: types the skill and its arguments into the pane, then the key that submits it. Refused when Rex
   reports any blocked record (a question or permission prompt would take the keys), when the name isn't in the
   pane's catalog, or when the arguments aren't one line of at most 500 characters. Whatever is already typed at the
@@ -531,6 +550,11 @@ and **Plugins**, then takes optional arguments.
     user and plugin skills and commands (plugin ones tested with a `--plugin-dir` plugin). While Qoder works it
     says "Slash commands cannot be queued" and leaves the line at its prompt, so Rex Radar refuses a skill for a
     working Qoder pane (and the **Skill** button is off until it's done).
+  - Pi 1.4.0 (2026-10-27): `/name arguments` or `/skill:name arguments`, then Alt+Enter. When Pi is idle,
+    Alt+Enter submits like Enter, even with the slash menu open; while Pi works, Enter would steer the running
+    turn (cutting off its remaining tool calls) and Alt+Enter queues a follow-up, which Pi expands at once
+    ("Follow-up: Say hello to radar.") and runs after the reply. Tested with a user and a project prompt template
+    and a `~/.agents/skills` skill.
 - **Phones**: only when **Settings → Let iPhone & iPad send skills to agents** is on (off by default):
   `GET /v1/skills?id=…` and `POST /v1/skill?id=…` (body `{"name", "arguments"}`) answer `403` otherwise. Each
   `Skill` carries its `sigil` (`/` or `$`); a Mac without it means `/`. Remote servers aren't offered: their skills

@@ -6,6 +6,7 @@ enum SkillAgent: String, CaseIterable, Identifiable {
   case codex
   case antigravity
   case qoder
+  case pi
 
   var id: String { rawValue }
   var title: String { Pane.appLabel(rawValue) }
@@ -17,6 +18,7 @@ enum SkillAgent: String, CaseIterable, Identifiable {
     case .codex: "codex"
     case .antigravity: "agy"
     case .qoder: "qodercli"
+    case .pi: "pi"
     }
   }
 
@@ -92,7 +94,7 @@ enum SkillError: LocalizedError, Equatable {
     case .unknown(let command): "The agent doesn't offer \(command) in that pane."
     case .busy: "The agent is waiting on a question or a permission in that pane; answer it first."
     case .working: "The agent can't queue skills; send it when the agent is done."
-    case .unsupported: "That pane isn't running Claude Code, Codex, Antigravity or Qoder on this Mac's Rex."
+    case .unsupported: "That pane isn't running Claude Code, Codex, Antigravity, Qoder or Pi on this Mac's Rex."
     }
   }
 }
@@ -101,8 +103,8 @@ extension Row {
   /// The agent in the pane, when it's one Rex Radar can send skills to.
   var skillAgent: SkillAgent? { pane.app.flatMap(SkillAgent.init(rawValue:)) }
 
-  /// Claude Code, Codex, Antigravity or Qoder on the Mac's own Rex server (its skills are on that
-  /// Mac's disk), not stuck on a prompt that typing would answer, nor working when it can't queue.
+  /// Claude Code, Codex, Antigravity, Qoder or Pi on the Mac's own Rex server (its skills are on
+  /// that Mac's disk), not stuck on a prompt that typing would answer, nor working when it can't queue.
   var takesSkills: Bool {
     guard let agent = skillAgent else { return false }
     return server == nil && !stale && state != .blocked && (agent.queues || state != .working)

@@ -269,6 +269,9 @@ enum Rex {
   /// - Codex 0.164.0: `$name args`, then Tab. Enter would only pick from the `$` menu (a space
   ///   after a bare name closes it), and while Codex works Enter steers the running turn where
   ///   Tab queues.
+  /// - Pi 1.4.0 (on 2026-10-27): `/name args` or `/skill:name args`, then Alt+Enter, which submits
+  ///   like Enter when idle, menu open or not, and queues a follow-up while Pi works, where Enter
+  ///   would steer the running turn.
   static func sendSkill(_ row: Row, _ request: SkillRequest, agent: SkillAgent) throws {
     let records = try statusRecords(row)
     guard !records.contains(where: { $0["state"] as? String == "blocked" }) else { throw SkillError.busy }
@@ -283,6 +286,9 @@ enum Rex {
     case .codex:
       try type(row, line.contains(" ") ? line : line + " ")
       try key(row, "tab")
+    case .pi:
+      try type(row, line)
+      try key(row, "alt+enter")
     }
   }
 

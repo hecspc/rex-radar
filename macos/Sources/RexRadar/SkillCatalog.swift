@@ -35,6 +35,11 @@ import Foundation
 ///   its skills as `/<plugin>:<name>`, and its commands as the manifest names them
 /// Its bundled skills (`/review`, `/imagegen`, …) are left out, like Antigravity's.
 ///
+/// Pi (as of 1.4.0), typed `/name` for prompt templates and `/skill:name` for skills: Pi lists
+/// them itself (`get_commands` in its RPC mode, run in the directory), since its packages,
+/// settings and project trust decide what loads. Extensions stay off for that run, so their
+/// commands are left out: they run code as they load.
+///
 /// Skills with `user-invocable: false` (Claude) or `disable-slash-command: true` (Antigravity)
 /// stay out: the agents' menus hide them too.
 enum SkillCatalog {
@@ -47,6 +52,7 @@ enum SkillCatalog {
     case .codex: found = codex(dir, home: home)
     case .antigravity: found = antigravity(dir, home: home)
     case .qoder: found = qoder(dir, home: home)
+    case .pi: found = pi(dir ?? home)
     }
     // Found in priority order: the first of a name wins a clash.
     var seen = Set<String>()
@@ -110,6 +116,41 @@ enum SkillCatalog {
       found += scanSkills(plugin.skills, scope: .plugin, prefix: plugin.name) + plugin.commands
     }
     return found
+  }
+
+  /// Asks Pi what its menu offers in `dir`. Pi runs through an interactive shell, like a new
+  /// session's agent, so it's found on the PATH `.zshrc` sets; a pane's own PATH can differ.
+  private static func pi(_ dir: URL) -> [Skill] {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh")
+    process.arguments = ["-ic", "exec pi --mode rpc --no-session --no-extensions"]
+    process.currentDirectoryURL = dir
+    let input = Pipe(), output = Pipe()
+    process.standardInput = input
+    process.standardOutput = output
+    process.standardError = FileHandle.nullDevice
+    guard (try? process.run()) != nil else { return [] }
+    // Pi answers, then quits at the end of its input.
+    input.fileHandleForWriting.write(Data(#"{"type":"get_commands"}"#.utf8 + [10]))
+    try? input.fileHandleForWriting.close()
+    let deadline = DispatchWorkItem { process.terminate() }
+    DispatchQueue.global().asyncAfter(deadline: .now() + 10, execute: deadline)
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    deadline.cancel()
+    process.waitUntilExit()
+    // The shell's own start-up may print first: take the line that answers.
+    let reply = data.split(separator: 10).lazy.compactMap { try? JSONSerialization.jsonObject(with: Data($0)) as? [String: Any] }
+      .first { $0["command"] as? String == "get_commands" }
+    let commands = (reply?["data"] as? [String: Any])?["commands"] as? [[String: Any]] ?? []
+    return commands.compactMap { command in
+      guard let name = command["name"] as? String, command["source"] as? String != "extension" else { return nil }
+      let info = command["sourceInfo"] as? [String: Any] ?? [:]
+      let description = (command["description"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+      if info["origin"] as? String == "package" {
+        return Skill(name: name, description: description, scope: .plugin, plugin: info["source"] as? String)
+      }
+      return Skill(name: name, description: description, scope: info["scope"] as? String == "project" ? .project : .user)
+    }
   }
 
   // MARK: Directories

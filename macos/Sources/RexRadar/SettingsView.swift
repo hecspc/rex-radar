@@ -147,9 +147,9 @@ struct SettingsView: View {
       } footer: {
         Text(
           "Sending types the skill and its arguments into the agent's pane in Rex (/skill for Claude Code, "
-            + "Antigravity and Qoder, $skill for Codex), then submits it. Rex Radar only sends skills the agent offers "
-            + "in that pane, one line, and never while the agent waits on a question or a permission, nor while Qoder "
-            + "works, since it can't queue them.")
+            + "Antigravity, Qoder and Pi, $skill for Codex), then submits it. Rex Radar only sends skills the agent "
+            + "offers in that pane, one line, and never while the agent waits on a question or a permission, nor while "
+            + "Qoder works, since it can't queue them.")
       }
 
       Section {
@@ -158,8 +158,8 @@ struct SettingsView: View {
         Text("New Sessions")
       } footer: {
         Text(
-          "Starts Claude Code, Codex, Antigravity or Qoder in a new Rex session in the folder the phone names, on "
-            + "this Mac's Rex or a server it watches, and shows it in Rex here.")
+          "Starts Claude Code, Codex, Antigravity, Qoder or Pi in a new Rex session in the folder the phone names, "
+            + "on this Mac's Rex or a server it watches, and shows it in Rex here.")
       }
 
       Section {

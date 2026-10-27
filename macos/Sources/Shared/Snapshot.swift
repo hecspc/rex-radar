@@ -93,6 +93,8 @@ struct Row: Codable, Identifiable, Hashable {
 
   var detail: String? {
     if let msg = pane.msg, !msg.isEmpty { return msg }
+    // Pi's title is "π - <folder>" until its session has a name.
+    if pane.app == "pi" { return topic }
     if let title = pane.title, !title.isEmpty, title != "Claude Code" { return title }
     return nil
   }
