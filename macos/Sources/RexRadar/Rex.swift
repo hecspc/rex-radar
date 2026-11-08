@@ -185,6 +185,7 @@ enum Rex {
     if questions.app == "codex" || questions.app == "antigravity" {
       return try answerOneByOne(row, questions: questions, answers: answers)
     }
+    if questions.app == "pi" { return try answerPi(row, questions: questions, answers: answers) }
     let qs = questions.questions
     guard let first = qs.first else { throw AnswerError.notWaiting }
     // Still asking the same thing? Rex must say it waits on a question, and the screen must show it.
@@ -293,6 +294,12 @@ enum Rex {
   }
 
   /// Runs `rex [-S server] <args>` and returns its output.
+  /// Closes the row's pane in Rex, which ends the agent running in it. Rex closes the tab with
+  /// its last pane.
+  static func close(_ row: Row) throws {
+    _ = try run(["block", "close", "-s", row.pane.sessionId, row.pane.blockId], server: row.server)
+  }
+
   private static func run(_ args: [String], server: String?) throws -> Data {
     guard let rex = executable else { throw Failure.noRex }
     let process = Process()

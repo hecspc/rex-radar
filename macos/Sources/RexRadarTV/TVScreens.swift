@@ -25,20 +25,26 @@ struct TVAgentsScreen: View {
                 "No agents", systemImage: "dot.radiowaves.left.and.right",
                 description: Text("Nothing is running in Rex on your Macs right now."))
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 520, maximum: 760), spacing: 40, alignment: .top)], spacing: 40) {
-              ForEach(client.agents) { agent in
-                let answerable = client.canAnswer(agent)
-                let decidable = client.canDecide(agent)
-                TVAgentCard(row: agent.row, answerable: answerable, decidable: decidable) {
-                  if answerable {
-                    answering = agent
-                  } else if decidable {
-                    deciding = agent
-                  } else {
-                    client.open(agent)
+            // As on the Mac: one grid of cards, most urgent first, filling every row, then resting
+            // agents as strips. Four to a row: it's a wall.
+            let active = client.agents.filter { !$0.row.isResting }
+            let resting = client.agents.filter(\.row.isResting)
+            VStack(alignment: .leading, spacing: 48) {
+              if !active.isEmpty {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 390), spacing: 32, alignment: .top)], spacing: 32) {
+                  ForEach(active) { agent in card(agent) }
+                }
+              }
+              if !resting.isEmpty {
+                VStack(alignment: .leading, spacing: 24) {
+                  TVSectionHeader(title: "Resting", count: resting.count)
+                  LazyVGrid(columns: [GridItem(.adaptive(minimum: 560), spacing: 32, alignment: .top)], spacing: 20) {
+                    ForEach(resting) { agent in
+                      TVRestingStrip(row: agent.row) { client.open(agent) }
+                        .focused($focused, equals: agent.id)
+                    }
                   }
                 }
-                .focused($focused, equals: agent.id)
               }
             }
             // Its own section: from Settings, at the top right, down reaches the cards.
@@ -81,6 +87,21 @@ struct TVAgentsScreen: View {
     }
   }
 
+  private func card(_ agent: Agent) -> some View {
+    let answerable = client.canAnswer(agent)
+    let decidable = client.canDecide(agent)
+    return TVAgentCard(row: agent.row, answerable: answerable, decidable: decidable) {
+      if answerable {
+        answering = agent
+      } else if decidable {
+        deciding = agent
+      } else {
+        client.open(agent)
+      }
+    }
+    .focused($focused, equals: agent.id)
+  }
+
   private var header: some View {
     HStack(alignment: .firstTextBaseline) {
       VStack(alignment: .leading, spacing: 6) {
@@ -116,15 +137,15 @@ struct TVAgentsScreen: View {
   }
 
   private var summary: String {
-    let count = client.agents.count
-    var parts = ["\(count) agent\(count == 1 ? "" : "s")"]
-    if client.attentionCount > 0 { parts.append("\(client.attentionCount) need\(client.attentionCount == 1 ? "s" : "") you") }
+    var parts = [RowSection.summary(client.agents) { $0.row }].filter { !$0.isEmpty }
     if let updated = client.updated { parts.append("updated \(updated.formatted(date: .omitted, time: .shortened))") }
     return parts.joined(separator: " · ")
   }
 }
 
 /// An agent as one focusable card, which the system lifts under focus; Select opens it in Rex.
+/// Laid out like the Mac's: its scope, its state and time in it, the headline and what tells it
+/// apart, then what it says or asks.
 struct TVAgentCard: View {
   let row: Row
   /// Its questions can be answered from here: Select shows them instead of opening it.
@@ -133,41 +154,104 @@ struct TVAgentCard: View {
   var decidable = false
   let select: () -> Void
 
+  private var facts: [(symbol: String, text: String)] {
+    row.facts(session: true) + (row.server == nil ? [] : [("server.rack", row.source)])
+  }
+
   var body: some View {
     Button(action: select) {
       VStack(alignment: .leading, spacing: 12) {
-        HStack(alignment: .top) {
-          StatePill(row: row)
-          Spacer()
-          AppBadge(row: row, size: 28)
+        HStack(spacing: 14) {
+          Scope(row: row, size: 34)
+          StateEyebrow(row: row)
+          Spacer(minLength: 8)
+          AgentIcon(row: row, size: 24)
         }
         VStack(alignment: .leading, spacing: 4) {
-          Text(row.pane.session ?? "Session").font(.title3.weight(.semibold)).lineLimit(1)
-          Text([row.tabLabel, row.source].filter { !$0.isEmpty }.joined(separator: " · "))
-            .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-        }
-        if let topic = row.topic {
-          Label(topic, systemImage: "bubble.left").font(.callout).lineLimit(1)
+          Text(row.headline).font(.headline).lineLimit(2)
+          if !facts.isEmpty {
+            Text(facts.map(\.text).joined(separator: " · "))
+              .font(.caption2.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+          }
         }
         if let permission = row.permission {
-          PermissionPrompt(permission: permission, lineLimit: decidable ? 3 : 4)
-        } else if let msg = row.pane.msg, !msg.isEmpty {
-          Text(msg).font(.callout).foregroundStyle(.secondary).lineLimit(answerable ? 1 : 2)
+          Text(permission.prompt).font(.caption.monospaced()).lineLimit(3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(row.state.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        } else if let question = row.questions?.questions.first {
+          Quote(text: question.question, color: row.state.color, lineLimit: 2).font(.caption)
+        } else if let message = row.message {
+          Quote(text: message, color: row.state == .error ? row.state.color : .secondary, lineLimit: 2).font(.caption)
         }
         Spacer(minLength: 0)
         if answerable, let n = row.questions?.questions.count {
           Label("Answer \(n) question\(n == 1 ? "" : "s")", systemImage: "questionmark.bubble.fill")
-            .font(.callout.weight(.semibold)).foregroundStyle(.tint)
+            .font(.caption.weight(.semibold)).foregroundStyle(.tint)
         } else if decidable {
           Label("Allow or deny", systemImage: "hand.raised.fill")
-            .font(.callout.weight(.semibold)).foregroundStyle(.tint)
+            .font(.caption.weight(.semibold)).foregroundStyle(.tint)
         }
       }
-      .padding(28)
-      .frame(maxWidth: .infinity, minHeight: 380, maxHeight: 380, alignment: .topLeading)
+      .padding(24)
+      .frame(maxWidth: .infinity, minHeight: 250, alignment: .topLeading)
+      // The state's colour as an outline rather than a fill (a fill bled past the card into the
+      // row), inside the label so it lifts with the card under focus.
+      .overlay {
+        if row.state.needsAttention && !row.stale {
+          RoundedRectangle(cornerRadius: 12).strokeBorder(row.state.color.opacity(0.8), lineWidth: 3)
+        }
+      }
     }
     .buttonStyle(.card)
     .opacity(row.stale ? 0.5 : 1)
+  }
+}
+
+/// A resting agent as one focusable line: its scope, what it is, where, and how long it has
+/// rested. Select opens it in Rex.
+struct TVRestingStrip: View {
+  let row: Row
+  var showSession = true
+  let select: () -> Void
+
+  private var place: String? {
+    let fact = showSession ? row.pane.session : row.facts(session: false).first?.text
+    let text = [fact, row.server == nil ? nil : row.source].compactMap { $0 }.joined(separator: " · ")
+    return text.isEmpty ? nil : text
+  }
+
+  var body: some View {
+    Button(action: select) {
+      HStack(spacing: 20) {
+        Scope(row: row, size: 28)
+        Text(row.headline).font(.callout.weight(.semibold)).lineLimit(1).layoutPriority(1)
+        Spacer(minLength: 12)
+        if let place {
+          Text(place).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+        }
+        Text(row.stale ? "stale" : row.elapsed() ?? "").font(.caption.monospaced()).foregroundStyle(.tertiary)
+        AgentIcon(row: row, size: 24)
+      }
+      .padding(.horizontal, 28)
+      .padding(.vertical, 18)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .buttonStyle(.card)
+    .opacity(row.stale ? 0.5 : 1)
+  }
+}
+
+/// Above the resting agents on the TV: a title and how many.
+struct TVSectionHeader: View {
+  let title: String
+  let count: Int
+
+  var body: some View {
+    HStack(spacing: 16) {
+      Text(title.uppercased()).font(.system(.headline, design: .monospaced).weight(.bold)).tracking(2).lineLimit(1)
+      Text("\(count)").font(.system(.headline, design: .monospaced)).foregroundStyle(.secondary)
+    }
   }
 }
 
@@ -244,12 +328,13 @@ struct TVAnswer: View {
   var body: some View {
     HStack(alignment: .top, spacing: 80) {
       VStack(alignment: .leading, spacing: 16) {
-        StatePill(row: agent.row)
-        Text(agent.row.pane.session ?? "Session").font(.largeTitle.weight(.bold)).lineLimit(2)
-        Text("\(agent.row.tabLabel) · \(agent.serverLabel)").foregroundStyle(.secondary)
-        if let topic = agent.row.topic {
-          Label(topic, systemImage: "bubble.left").font(.callout)
+        HStack(spacing: 16) {
+          Scope(row: agent.row, size: 40)
+          StateEyebrow(row: agent.row)
         }
+        Text(agent.row.headline).font(.largeTitle.weight(.bold)).lineLimit(2)
+        Text((agent.row.facts(session: true).map(\.text) + [agent.serverLabel]).joined(separator: " · "))
+          .foregroundStyle(.secondary)
         Text("\(agent.row.appLabel) is asking. Pick an answer for each question, then Send.")
           .font(.callout).foregroundStyle(.secondary).padding(.top, 24)
       }

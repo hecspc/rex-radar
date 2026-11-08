@@ -59,8 +59,8 @@ struct MainWindow: View {
       if let (row, draft) = store.answering {
         ScrollView {
           VStack(alignment: .leading, spacing: 12) {
-            Text(row.pane.session ?? "Session").font(.title2.weight(.bold))
-            Text(row.tabLabel).foregroundStyle(.secondary)
+            Text(row.headline).font(.title2.weight(.bold))
+            FactsLine(facts: row.facts(session: true), font: .subheadline)
             QuestionsForm(draft: draft, send: { try await store.answer(row, $0) }, cancel: { store.stopAnswering() })
           }
           .padding(24)
@@ -71,8 +71,8 @@ struct MainWindow: View {
     .sheet(isPresented: Binding(get: { store.picking != nil }, set: { if !$0 { store.picking = nil } })) {
       if let row = store.picking {
         VStack(alignment: .leading, spacing: 12) {
-          Text(row.pane.session ?? "Session").font(.title2.weight(.bold))
-          Text(row.tabLabel).foregroundStyle(.secondary)
+          Text(row.headline).font(.title2.weight(.bold))
+          FactsLine(facts: row.facts(session: true), font: .subheadline)
           SkillPicker(
             load: { try await store.skills(for: row) }, send: { try await store.sendSkill(row, $0) },
             agentName: row.appLabel, cancel: { store.picking = nil })
@@ -100,18 +100,39 @@ struct MainWindow: View {
     } else {
       ScrollView {
         GlassEffectContainer(spacing: 16) {
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 16, alignment: .top)], spacing: 16) {
-            ForEach(rows) { row in
-              HeroCard(
-                row: row, open: { store.open(row) }, answer: row.questions == nil ? nil : { store.startAnswering(row) },
-                skill: row.takesSkills ? { store.picking = row } : nil, decide: { store.decide(row, $0) }, fillHeight: true)
+          // One grid of cards, most urgent first, filling every row: a wall, not a list of sections.
+          // Resting agents follow as strips.
+          let active = rows.filter { !$0.isResting }
+          let resting = rows.filter(\.isResting)
+          VStack(alignment: .leading, spacing: 24) {
+            if !active.isEmpty {
+              LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 14, alignment: .top)], spacing: 14) {
+                ForEach(active) { row in
+                  HeroCard(
+                    row: row, open: { store.open(row) }, answer: row.questions == nil ? nil : { store.startAnswering(row) },
+                    skill: row.takesSkills ? { store.picking = row } : nil, decide: { store.decide(row, $0) },
+                    close: { store.close(row) }, fillHeight: true)
+                }
+              }
+            }
+            if !resting.isEmpty {
+              VStack(alignment: .leading, spacing: 10) {
+                SectionHeader(title: "Resting", count: resting.count)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 10, alignment: .top)], spacing: 8) {
+                  ForEach(resting) { row in
+                    RestingStrip(
+                      row: row, open: { store.open(row) }, skill: row.takesSkills ? { store.picking = row } : nil,
+                      close: { store.close(row) })
+                  }
+                }
+              }
             }
           }
           .padding(20)
         }
       }
       .navigationTitle(model.selection == Self.all || model.selection == nil ? "All Agents" : model.selection!)
-      .navigationSubtitle(store.openError ?? "\(rows.count) agent\(rows.count == 1 ? "" : "s")")
+      .navigationSubtitle(store.openError ?? RowSection.summary(rows) { $0 })
     }
   }
 }

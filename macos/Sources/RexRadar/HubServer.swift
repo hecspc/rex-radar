@@ -12,12 +12,13 @@ import Network
 ///   GET  /v1/skills?id=<row> → the skills its agent offers in that pane ([Skill])
 ///   POST /v1/skill?id=<row>  → types one into it (body: SkillRequest); both only when Settings
 ///                              allows it
+///   POST /v1/close?id=<row>  → closes its pane in Rex, ending the agent; only when Settings allows it
 ///   POST /v1/session         → starts an agent in a new Rex session (body: NewSessionRequest);
 ///                              only when Settings allows it
 ///   POST /v1/open?id=<row>   → shows that pane in Rex here (body: the row, for agents another Mac
 ///                              watches on a server this Mac reaches by address)
-///   POST /v1/pair            → a device without a camera (Apple TV) asks to pair (body:
-///                              PairRequestBody) → PairTicket
+///   POST /v1/pair            → a device asks to pair without the QR code (body:
+///                              PairRequestBody) → PairTicket; allowed at once when Settings says so
 ///   GET  /v1/pair?id=<id>    → PairStatus: the token once someone allows it on the Devices page
 ///
 /// Every other request needs `Authorization: Bearer <token>`; the token is generated once and
@@ -122,7 +123,7 @@ final class HubServer: ObservableObject {
         host: hostName, sources: store.sources, rows: store.rows, writtenAt: Date(),
         answering: Preferences.shared.allowPhoneAnswers, skills: Preferences.shared.allowPhoneSkills,
         permissions: Preferences.shared.allowPhonePermissions, sessions: Preferences.shared.allowPhoneSessions,
-        servers: Watchers.shared.servers.map(\.name))
+        closing: Preferences.shared.allowPhoneClose, servers: Watchers.shared.servers.map(\.name))
       send(connection, 200, body)
     case ("POST", "/v1/open"):
       let id = target?.queryItems?.first { $0.name == "id" }?.value
@@ -155,6 +156,23 @@ final class HubServer: ObservableObject {
       Task {
         do {
           try await store.answer(row, answers)
+          send(connection, 200, ["ok": "true"])
+        } catch {
+          send(connection, 409, ["error": error.localizedDescription])
+        }
+      }
+    case ("POST", "/v1/close"):
+      guard Preferences.shared.allowPhoneClose else {
+        return send(connection, 403, ["error": "Closing agents from iPhone & iPad is off in Rex Radar's Settings on this Mac."])
+      }
+      let id = target?.queryItems?.first { $0.name == "id" }?.value
+      store.reload()
+      guard let row = store.rows.first(where: { $0.id == id }) else {
+        return send(connection, 404, ["error": "no such agent"])
+      }
+      Task {
+        do {
+          try await store.close(row)
           send(connection, 200, ["ok": "true"])
         } catch {
           send(connection, 409, ["error": error.localizedDescription])
@@ -272,8 +290,9 @@ final class HubServer: ObservableObject {
     pairRequests[i].allowed = allow
   }
 
-  /// /v1/pair, without a token: the device asks, then polls until someone here allows or denies it.
-  /// Requests lapse after two minutes; the token goes out once, to the poll after Allow.
+  /// /v1/pair, without a token: the device asks, then polls until someone here allows or denies it,
+  /// or at once when Settings pairs devices without asking. Requests lapse after two minutes; the
+  /// token goes out once, to the poll after Allow.
   private func pairing(_ method: String, _ target: URLComponents?, _ body: Data, on connection: NWConnection) {
     pairRequests.removeAll { Date().timeIntervalSince($0.created) > 120 }
     if method == "POST" {
@@ -285,12 +304,13 @@ final class HubServer: ObservableObject {
         return send(connection, 429, ["error": "Too many devices are asking to pair. Try again in a couple of minutes."])
       }
       let name = request.name.trimmingCharacters(in: .whitespacesAndNewlines)
-      let pending = PairRequest(
+      var pending = PairRequest(
         id: UUID().uuidString, name: name.isEmpty ? "A device" : String(name.prefix(60)),
         code: String(format: "%04d", Int.random(in: 0..<10_000)))
+      let atOnce = Preferences.shared.pairWithoutAsking
+      if atOnce { pending.allowed = true } else { WindowOpener.showMain() }
       pairRequests.append(pending)
-      WindowOpener.showMain()
-      return send(connection, 200, PairTicket(id: pending.id, code: pending.code))
+      return send(connection, 200, PairTicket(id: pending.id, code: pending.code, allowed: atOnce ? true : nil))
     }
     let id = target?.queryItems?.first { $0.name == "id" }?.value
     guard method == "GET", let i = pairRequests.firstIndex(where: { $0.id == id }) else {

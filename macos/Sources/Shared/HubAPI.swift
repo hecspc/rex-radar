@@ -14,6 +14,8 @@ struct AgentsResponse: Codable {
   var permissions: Bool? = nil
   /// Whether this Mac lets phones start agents in new sessions (Settings, off by default).
   var sessions: Bool? = nil
+  /// Whether this Mac lets phones close agents' panes (Settings, off by default).
+  var closing: Bool? = nil
   /// The Rex servers this Mac can start sessions on, by name.
   var servers: [String]? = nil
 }
@@ -26,16 +28,19 @@ struct NewSessionRequest: Codable {
   var server: String? = nil
 }
 
-/// POST /v1/pair: a device without a camera (Apple TV) asks to pair; someone allows it on the Mac.
+/// POST /v1/pair: a device asks to pair without the QR code (an Apple TV, or an iPhone that found
+/// the Mac over Bonjour or by address); someone allows it on the Mac.
 struct PairRequestBody: Codable {
   var name: String
 }
 
 /// The answer to POST /v1/pair: poll GET /v1/pair?id=<id>. Both screens show `code`, so you can
-/// tell the request you allow on the Mac is the one on your TV.
+/// tell the request you allow on the Mac is the one on your device.
 struct PairTicket: Codable {
   var id: String
   var code: String
+  /// The Mac pairs devices without asking (its Settings): the first poll gets the token.
+  var allowed: Bool? = nil
 }
 
 /// GET /v1/pair?id=…: "pending", "allowed" (with the token and the Mac's name) or "denied".

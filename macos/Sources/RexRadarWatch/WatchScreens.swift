@@ -26,10 +26,11 @@ struct AgentCell: View {
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 4) {
           AgentIcon(row: agent.row, size: 13)
-          Text(agent.row.pane.session ?? "Session").font(.headline).lineLimit(1)
+          Text(agent.row.headline).font(.headline).lineLimit(1)
         }
-        Text(agent.row.stateLabel).font(.caption2).foregroundStyle(agent.row.state.color)
-        if let detail = agent.row.permission?.prompt ?? agent.row.pane.msg ?? agent.row.topic {
+        Text([agent.row.stateLabel, agent.row.elapsed()].compactMap { $0 }.joined(separator: " · "))
+          .font(.caption2).foregroundStyle(agent.row.state.color)
+        if let detail = agent.row.permission?.prompt ?? agent.row.message ?? agent.row.pane.session {
           Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
         }
       }
@@ -47,13 +48,13 @@ struct AgentDetail: View {
       VStack(alignment: .leading, spacing: 8) {
         Label(agent.row.stateLabel, systemImage: agent.row.state.symbol)
           .font(.headline).foregroundStyle(agent.row.state.color)
-        Text(agent.row.pane.session ?? "Session").font(.title3.weight(.semibold))
+        Text(agent.row.headline).font(.title3.weight(.semibold))
         AppBadge(row: agent.row)
-        Text("\(agent.row.tabLabel) · \(agent.serverLabel)").font(.caption2).foregroundStyle(.secondary)
-        if let topic = agent.row.topic { Text(topic).font(.footnote) }
+        Text((agent.row.facts(session: true).map(\.text) + [agent.serverLabel]).joined(separator: " · "))
+          .font(.caption2).foregroundStyle(.secondary)
         if let permission = agent.row.permission {
           Text(permission.prompt).font(.footnote.monospaced()).foregroundStyle(.secondary)
-        } else if let msg = agent.row.pane.msg {
+        } else if let msg = agent.row.message {
           Text(msg).font(.footnote).foregroundStyle(.secondary)
         }
         if client.canDecide(agent) {

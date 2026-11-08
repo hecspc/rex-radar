@@ -37,6 +37,8 @@ final class HubClient {
   private(set) var skillsByHub: [UUID: Bool] = [:]
   /// Per Mac: whether it lets this device allow or deny agents' permissions (its Settings).
   private(set) var permissionsByHub: [UUID: Bool] = [:]
+  /// Per Mac: whether it lets this device close agents (its Settings).
+  private(set) var closingByHub: [UUID: Bool] = [:]
   /// Per Mac that lets this device start sessions (its Settings): the Rex servers it can start them on.
   private(set) var sessionServersByHub: [UUID: [String]] = [:]
   private(set) var errors: [UUID: String] = [:]
@@ -68,11 +70,7 @@ final class HubClient {
         if seen.insert(agent.serverKey + "|" + row.pane.blockId).inserted { result.append(agent) }
       }
     }
-    return result.sorted { a, b in
-      if a.row.stale != b.row.stale { return !a.row.stale }
-      if a.row.state != b.row.state { return a.row.state < b.row.state }
-      return (a.row.pane.session ?? "") < (b.row.pane.session ?? "")
-    }
+    return result.sorted { Row.byUrgency($0.row, $1.row) }
   }
 
   var servers: [(key: String, label: String)] {
@@ -97,11 +95,13 @@ final class HubClient {
     return true
   }
 
-  /// Adds a Mac, or updates it when one with the same name (or address) is already paired.
-  /// The first Mac becomes the main one.
-  func pair(host: String, port: Int, token: String, name: String) {
+  /// Adds a Mac, or updates it when one with the same name (or address) is already paired, or
+  /// the one `replacing` names. The first Mac becomes the main one.
+  func pair(host: String, port: Int, token: String, name: String, replacing: UUID? = nil) {
     var hub = Hub(name: name, host: host, port: port)
-    if let i = hubs.firstIndex(where: { $0.name == name || ($0.host == host && $0.port == port) }) {
+    let match = replacing.flatMap { id in hubs.firstIndex { $0.id == id } }
+      ?? hubs.firstIndex { $0.name == name || ($0.host == host && $0.port == port) }
+    if let i = match {
       hub.id = hubs[i].id
       hubs[i] = hub
     } else {
@@ -109,6 +109,25 @@ final class HubClient {
     }
     if mainID == nil { mainID = hub.id }
     Keychain.write(token, for: hub.id)
+    save()
+    Task { await refresh() }
+  }
+
+  /// Pairs with the Mac at an address by hand, with its token: asks it first, so a wrong address
+  /// or token fails here rather than in the list, and takes the Mac's own name from its answer,
+  /// which also lets the app find it again over Bonjour. `replacing` edits a paired Mac.
+  func connect(host: String, port: Int, token: String, replacing: UUID? = nil) async throws {
+    let host = host.trimmingCharacters(in: .whitespacesAndNewlines)
+    let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
+    let response = try await Self.fetch(Hub(name: host, host: host, port: port), token: token).get()
+    pair(host: host, port: port, token: token, name: response.host, replacing: replacing)
+  }
+
+  /// Moves a paired Mac to another address without asking it, for when it can't be reached from here.
+  func move(_ hub: Hub, host: String, port: Int) {
+    guard let i = hubs.firstIndex(where: { $0.id == hub.id }) else { return }
+    hubs[i].host = host.trimmingCharacters(in: .whitespacesAndNewlines)
+    hubs[i].port = port
     save()
     Task { await refresh() }
   }
@@ -175,6 +194,7 @@ final class HubClient {
       answeringByHub[id] = response.answering ?? false
       skillsByHub[id] = response.skills ?? false
       permissionsByHub[id] = response.permissions ?? false
+      closingByHub[id] = response.closing ?? false
       sessionServersByHub[id] = response.sessions == true ? (response.servers ?? []) : nil
       errors[id] = nil
     case .failure(let error):
@@ -275,6 +295,24 @@ final class HubClient {
 
   /// Whether this agent's permission prompt can be allowed or denied from here: its Mac read it
   /// and allows it.
+  func canClose(_ agent: Agent) -> Bool { closingByHub[agent.hubID] ?? false }
+
+  /// Asks the agent's Mac to close its pane in Rex, ending the agent.
+  func close(_ agent: Agent) {
+    Task {
+      do {
+        let (url, token) = try endpoint("v1/close", agent)
+        _ = try await Self.request(url, method: "POST", token: token, body: Data())
+        notice = "Closed on \(agent.hubName)"
+      } catch {
+        notice = "Couldn't close: \(error.localizedDescription)"
+      }
+      await refresh()
+      try? await Task.sleep(for: .seconds(2.5))
+      notice = nil
+    }
+  }
+
   func canDecide(_ agent: Agent) -> Bool { agent.row.permission != nil && (permissionsByHub[agent.hubID] ?? false) }
 
   /// Asks the agent's Mac to allow or deny the permission this device showed. A refusal (it asks

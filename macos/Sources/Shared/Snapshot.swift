@@ -36,6 +36,10 @@ struct Pane: Codable, Identifiable, Hashable {
   var msg: String?
   /// When Rex last changed the pane's status, as the watcher wrote it.
   var updatedAt: String?
+  /// Where the pane's program runs, on its server's machine.
+  var cwd: String?
+  /// The git branch checked out there: set by the Mac for its own server's panes.
+  var branch: String?
 
   var id: String { blockId }
 }
@@ -85,6 +89,20 @@ struct Row: Codable, Identifiable, Hashable {
 
   var id: String { source + "/" + pane.blockId }
   var state: AgentState { AgentState(pane.state) }
+
+  /// A finished agent stays `done` in Rex until its next run; after this long, or once you open
+  /// it from Rex Radar, it counts as idle (Store.reload).
+  static let doneFadesAfter: TimeInterval = 5 * 60
+
+  /// The order of every list: live before stale, then by state (blocked, error, done, working,
+  /// idle), then the most recent change first.
+  static func byUrgency(_ a: Row, _ b: Row) -> Bool {
+    if a.stale != b.stale { return !a.stale }
+    if a.state != b.state { return a.state < b.state }
+    let (ta, tb) = (a.since ?? .distantPast, b.since ?? .distantPast)
+    if ta != tb { return ta > tb }
+    return a.id < b.id
+  }
 
   var place: String {
     let tab = [pane.tabIndex.map { "\($0)." }, pane.tab].compactMap { $0 }.joined(separator: " ")

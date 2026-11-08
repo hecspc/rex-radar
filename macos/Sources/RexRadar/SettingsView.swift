@@ -50,6 +50,16 @@ final class Preferences: ObservableObject {
     didSet { UserDefaults.standard.set(allowPhoneSessions, forKey: "allowPhoneSessions") }
   }
 
+  /// Off by default: closing ends the agent, whatever it was doing.
+  @Published var allowPhoneClose: Bool {
+    didSet { UserDefaults.standard.set(allowPhoneClose, forKey: "allowPhoneClose") }
+  }
+
+  /// Off by default: anyone who reaches the hub gets its token.
+  @Published var pairWithoutAsking: Bool {
+    didSet { UserDefaults.standard.set(pairWithoutAsking, forKey: "pairWithoutAsking") }
+  }
+
   @Published var presence: AppPresence {
     didSet {
       UserDefaults.standard.set(presence.rawValue, forKey: "presence")
@@ -65,6 +75,8 @@ final class Preferences: ObservableObject {
     allowPhoneSkills = UserDefaults.standard.bool(forKey: "allowPhoneSkills")
     allowPhoneSessions = UserDefaults.standard.bool(forKey: "allowPhoneSessions")
     allowPhonePermissions = UserDefaults.standard.bool(forKey: "allowPhonePermissions")
+    allowPhoneClose = UserDefaults.standard.bool(forKey: "allowPhoneClose")
+    pairWithoutAsking = UserDefaults.standard.bool(forKey: "pairWithoutAsking")
     clientLabel = UserDefaults.standard.string(forKey: "clientLabel") ?? Host.current().localizedName ?? ""
   }
 
@@ -92,6 +104,15 @@ struct SettingsView: View {
   @ObservedObject var prefs: Preferences
 
   var body: some View {
+    TabView {
+      general.tabItem { Label("General", systemImage: "gearshape") }
+      DeviceSettings(prefs: prefs).tabItem { Label("iPhone & iPad", systemImage: "iphone.and.ipad") }
+    }
+    .frame(width: 500)
+    .onAppear { prefs.refresh() }
+  }
+
+  private var general: some View {
     Form {
       Section {
         Toggle(
@@ -111,68 +132,66 @@ struct SettingsView: View {
         Picker("Show Rex Radar in", selection: $prefs.presence) {
           ForEach(AppPresence.allCases) { Text($0.title).tag($0) }
         }
-      } header: {
-        Text("General")
       } footer: {
-        Text("Rex Radar starts its watchers and the iPhone & iPad hub when it opens. Without the menu bar icon, "
-          + "click its Dock icon to open the window.")
-      }
-
-      Section {
-        Toggle("Let iPhone & iPad answer agents' questions", isOn: $prefs.allowPhoneAnswers)
-      } header: {
-        Text("Questions")
-      } footer: {
-        Text(
-          "Answering types into the agent's pane in Rex (Claude Code, Codex, Antigravity or Qoder on this Mac). Rex "
-            + "Radar only types for a pane that's showing the question list, only option numbers, Tab, arrows, Enter and "
-            + "one short line, and checks the form before typing and the agent's review before submitting.")
-      }
-
-      Section {
-        Toggle("Let iPhone & iPad allow or deny permissions", isOn: $prefs.allowPhonePermissions)
-      } header: {
-        Text("Permissions")
-      } footer: {
-        Text(
-          "Allowing presses 1 (Yes, this once) and denying presses Esc in the agent's pane in Rex, for Claude Code, "
-            + "Codex, Antigravity and Qoder. Rex Radar only presses them while the agent still asks what the phone "
-            + "showed.")
-      }
-
-      Section {
-        Toggle("Let iPhone & iPad send skills to agents", isOn: $prefs.allowPhoneSkills)
-      } header: {
-        Text("Skills")
-      } footer: {
-        Text(
-          "Sending types the skill and its arguments into the agent's pane in Rex (/skill for Claude Code, "
-            + "Antigravity, Qoder and Pi, $skill for Codex), then submits it. Rex Radar only sends skills the agent "
-            + "offers in that pane, one line, and never while the agent waits on a question or a permission, nor while "
-            + "Qoder works, since it can't queue them.")
-      }
-
-      Section {
-        Toggle("Let iPhone & iPad start new sessions", isOn: $prefs.allowPhoneSessions)
-      } header: {
-        Text("New Sessions")
-      } footer: {
-        Text(
-          "Starts Claude Code, Codex, Antigravity, Qoder or Pi in a new Rex session in the folder the phone names, "
-            + "on this Mac's Rex or a server it watches, and shows it in Rex here.")
+        Text("Rex Radar runs its watchers and the iPhone & iPad hub while it's open.")
       }
 
       Section {
         TextField("Rex app to switch", text: $prefs.clientLabel, prompt: Text(Host.current().localizedName ?? ""))
-      } header: {
-        Text("Open in Rex")
       } footer: {
-        Text("The label of the Rex app that shows an agent when you click it: this Mac's name, as `rex client ls` lists it.")
+        Text("The Rex app that shows an agent when you open it: this Mac's name, as `rex client ls` lists it.")
       }
     }
     .formStyle(.grouped)
-    .frame(width: 460)
     .fixedSize(horizontal: false, vertical: true)
-    .onAppear { prefs.refresh() }
+  }
+
+}
+
+/// What paired iPhones and iPads may do here, one toggle each.
+struct DeviceSettings: View {
+  @ObservedObject var prefs: Preferences
+
+  var body: some View {
+    Form {
+      Section {
+        option(
+          "Pair without asking", $prefs.pairWithoutAsking,
+          "Devices that find this Mac pair at once, instead of waiting on the Devices page. Anyone who reaches port "
+            + "\(HubServer.port) gets the token.")
+      }
+
+      Section {
+        option(
+          "Answer questions", $prefs.allowPhoneAnswers,
+          "Types the chosen options into the agent's form, after checking it still shows them (Pi's are answered directly).")
+        option(
+          "Allow or deny permissions", $prefs.allowPhonePermissions,
+          "Presses 1 (yes, once) or Esc, while the agent still asks what the phone showed.")
+        option(
+          "Send skills", $prefs.allowPhoneSkills,
+          "Types a skill the agent offers in that pane, never while it waits on you.")
+        option(
+          "Start new sessions", $prefs.allowPhoneSessions,
+          "Starts an agent in a new Rex session in the folder the phone names.")
+        option(
+          "Close agents", $prefs.allowPhoneClose,
+          "Closes the agent's pane in Rex, ending the agent whatever it was doing.")
+      } header: {
+        Text("Paired iPhones and iPads can")
+      } footer: {
+        Text("All off by default. Each acts in the agent's pane on this Mac.")
+      }
+    }
+    .formStyle(.grouped)
+    .fixedSize(horizontal: false, vertical: true)
+  }
+
+  /// A toggle with a one-line note under its label.
+  private func option(_ title: String, _ isOn: Binding<Bool>, _ note: String) -> some View {
+    Toggle(isOn: isOn) {
+      Text(title)
+      Text(note)
+    }
   }
 }

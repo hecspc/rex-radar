@@ -28,13 +28,16 @@ its questions and send agents skills, from wherever you are.
   summary and conversation topic.
 - **Open in Rex**: click or tap an agent to switch your Mac's Rex app to its pane, on any of your Rex servers.
 - **Answer agents' questions** (Claude Code's and Qoder's AskUserQuestion, Codex's and Antigravity's question
-  forms) from the Mac, iPhone, iPad, watch or Apple TV.
+  forms, Pi's `ask_user_question` from `@juicesharp/rpiv-ask-user-question`) from the Mac, iPhone, iPad, watch or
+  Apple TV.
 - **Send skills**: pick any skill or slash command Claude Code, Codex, Antigravity, Qoder or Pi offers in a pane
   (project, user and plugin), filtered as you type, and send it with arguments.
 - **New session**: start Claude Code, Codex, Antigravity, Qoder or Pi in a new Rex session in a folder, from the Mac,
   iPhone or iPad.
+- **Close**: end an agent and close its pane in Rex, from the Mac, iPhone or iPad.
 - **Widgets and complications** on the Mac desktop, Home and Lock Screen, and the watch face.
-- **Apple TV**: a full-screen grid of your agents for the wall, paired by allowing it on the Mac.
+- **Apple TV**: a full-screen grid of your agents for the wall, paired by allowing it on the Mac, with the same
+  scope cards (four to a row) and one-line strips as the Mac.
 
 ## Requirements
 
@@ -90,8 +93,9 @@ TV finds the Mac on the network and asks; allow it on the same page.
 ### Security
 
 The Mac app serves its agents to your phone over plain HTTP on port 7298, with a random bearer token from the
-pairing code. Anyone with the token can see your agents and open panes. An Apple TV gets the same token, only
-after you choose Allow on the Mac; answering questions and sending skills
+pairing code. Anyone with the token can see your agents and open panes. A device that asks to pair (an Apple
+TV, or an iPhone that found the Mac or has only its address) gets the same token, only after you choose Allow
+on the Mac, unless you turn on **Pair without asking** (Settings → iPhone & iPad); answering questions and sending skills
 are off until you turn them on in Settings. Use it on a network you trust, ideally over
 [Tailscale](https://tailscale.com), which encrypts it and lets the phone reach the Mac from anywhere.
 
@@ -127,8 +131,31 @@ A sidebar like Rex's own: servers → sessions → tabs → panes. Each pane run
 - **Unread**: done or blocked since you last looked.
 - **Where**: session, tab, and the pane's label when it has one other than Rex's default `shell`
   (`2. agents › reviewer`), so several helpers in one tab stay distinguishable.
+- **Checkout**: the folder the agent runs in (the pane's foreground process, read by the watcher at most once a
+  minute) and, for the Mac's own server, the git branch there (read from `.git/HEAD`, or a worktree's gitdir), so
+  agents working in different worktrees of one project can be told apart.
 
-Ordered by urgency: blocked first, then done-unseen, then working.
+Cards (window, panel, iPhone, iPad, Apple TV) lead with what tells an agent apart from the others in its session:
+its topic, else its tab's name, else its pane's label. Under it come the branch, the folder (unless it's the
+session's name) and tab › pane, and above it the state and how long it has been in it ("WORKING · 14M").
+
+Each agent's state is drawn as a small radar scope (`Scope` in `Shared/Components.swift`): a beam sweeps while it
+works, a contact pings while it needs you (its glyph says what for: a question, a permission, a login), a check
+marks it done, an empty ring while it rests, and a broken ring when its watcher went quiet. The motion is driven
+by a `TimelineView` (a repeating animation also animated the scopes' positions as cards moved) and stops with
+Reduce Motion.
+
+Every view (Mac window and panel, iPhone, iPad, Apple TV) lays agents out the same way, as a wall: one grid of
+cards that fills every row, most urgent first (needs you, done, working; `Row.byUrgency`), then the resting ones
+(idle, done for 5 minutes, stale) as one-line strips under a **Resting** label. Each card's eyebrow and tint say its
+state and each names its session; the title counts them ("3 need you · 2 done · 1 working · 7 resting",
+`RowSection.summary`). A click anywhere on a card or strip opens it in Rex; the card's corner has Open, Skill and
+Close, the strip's context menu the same. Cards of agents that need you take their state's tint; on the TV it's an
+outline, since a fill behind the card style bled into the row.
+
+Ordered by urgency: blocked first, then done-unseen, then working, then idle; within a state, the most recent change
+first. Rex keeps a pane `done` until the agent's next run (Pi never goes back to idle on its own), so a pane done for
+5 minutes, or opened from Rex Radar since, counts as idle (`Row.doneFadesAfter`, `Store.fadeDone`).
 
 ## Servers and the main server
 
@@ -188,8 +215,10 @@ drops the status.
 "Pi has no command hooks"). Verified 2026-10-27 with Pi 1.4.0: `app=pi`, `idle` at start, `working` (the session
 name in `msg`), `done` (the session name again, never the reply), `error` with the error's first line, and
 `blocked` while an extension dialog or a login (`kind=auth`) waits. Its project
-trust prompt at start reports nothing. Pi has no permission prompts and no question tool, so there's nothing to
-allow or answer. Its terminal title is `π - <session name> - <folder>` (`/name` sets the session name), and
+trust prompt at start reports nothing. Pi has no permission prompts and no question tool of its own; with
+`@juicesharp/rpiv-ask-user-question` and `hooks/pi-rex-questions.ts` its questions can be answered (see
+[Answering questions](#answering-questions)). An extension's `select` dialog reports `blocked` with
+`kind=permission` and its title in `msg` (pi-compact-transcript's first-run settings prompt shows up this way). Its terminal title is `π - <session name> - <folder>` (`/name` sets the session name), and
 `π - <folder>` before that; the topic is the session name, and with none the card shows no summary.
 
 Codex (in Plan mode), Antigravity and Qoder also report `blocked` with `kind=question` while they ask; see
@@ -272,9 +301,11 @@ macos/bundle.sh --install                                     # app only, comman
 
 - **Menu bar**: the app icon's dino and radar as a one-ink template glyph (`MenuIcon.swift`); a blip and a count
   when agents can't go on without you (blocked or error; done agents aren't counted).
-- **Panel** (Liquid Glass): the most urgent agent as a card with **Open in Rex** and **Skill**, the others in a card
-  per server (right-click one for **Send Skill…**). Opening a pane closes the panel.
-- **Window**: a server sidebar and a card per agent.
+- **Panel** (Liquid Glass): the same cards and strips as the window, in one column that scrolls between a
+  fixed header and footer, as tall as the screen allows. Each part has its own `GlassEffectContainer`: glass drawn
+  by one container around the scroll view isn't clipped by it, and scrolled cards slid over the header. Opening a
+  pane closes the panel.
+- **Window**: a server sidebar and a card per agent, most urgent first (see [What it shows](#what-it-shows)).
 - **New Session** (**+** in the panel and the window's toolbar): picks an agent (Claude Code by default), a folder
   (`~` by default) and, with several servers, the server, then runs `rex new <folder name> -c <folder>` and shows the
   session in Rex. Verified on 2026-10-27 with Claude Code 2.1.310, Codex 0.164.0, Antigravity 1.4.7, Qoder
@@ -284,8 +315,7 @@ macos/bundle.sh --install                                     # app only, comman
   - Rex starts the command in a login shell, which skips `.zshrc`, so `agy` and `qodercli` in `~/.local/bin` weren't
     found. The agent runs through `$SHELL -ic` to get the PATH a normal tab has.
   - Test without clicking: `RexRadar --new-session claude-code|codex|antigravity|qoder|pi <folder>`.
-  - iPhone and iPad: **+** at the top of the agent list, once a paired Mac turns on Settings → **Let iPhone & iPad start new
-    sessions** (off by default). The phone sends `POST /v1/session` with the agent, the folder and the server's name;
+  - iPhone and iPad: **+** at the top of the agent list, once a paired Mac turns on Settings → iPhone & iPad → **Start new sessions** (off by default). The phone sends `POST /v1/session` with the agent, the folder and the server's name;
     the Mac starts it as above and shows it in its Rex. `SIMCTL_CHILD_REXRADAR_SHOW_NEW_SESSION=1` opens the form in
     a simulator.
 - **Dock and menu bar**: Settings → **Show Rex Radar in** picks the Dock, the menu bar, or both (the default).
@@ -309,7 +339,14 @@ phone open agents in the Mac's Rex.
   `Authorization: Bearer <token>`; advertised over Bonjour as `_rexradar._tcp`.
 - **Pairing**: the Mac window's **Devices** page shows a QR code per address (Tailscale first). Scan it with
   the Camera app: the `rexradar://pair?host=…&token=…` link opens the app and pairs it. The token goes to the
-  Keychain. A form takes the address and token by hand.
+  Keychain. **Add a Mac** (the first screen, then Settings) also lists the Macs advertising `_rexradar._tcp`
+  on this network, and takes an address and port by hand. Tapping a Mac, or an address without a token, asks it
+  the Apple TV's way (`POST /v1/pair`, a code to allow on **Devices**); an address with the token from
+  **Devices** pairs at once, after `GET /v1/agents` answers with it. Either way the pairing takes the Mac's own
+  name. With **Pair without asking** (Settings → iPhone & iPad) on (off by default), `POST /v1/pair` returns
+  `allowed: true` and the first poll gets the token. Tapping a paired Mac in Settings changes its address, port
+  or token; **Save Anyway** keeps an address the phone can't reach yet. Over a VPN that doesn't carry Bonjour
+  (WireGuard), the app can't find a Mac's new address itself: change it there.
 - **A new address**: the pairing keeps the Mac's IPv4 address, which changes between Wi-Fi and Ethernet or with
   a new DHCP lease. When a Mac stops answering there (no connection, not a refusal), the app looks for its
   `_rexradar._tcp` service by the Mac's name, at most every 30 s, and moves the pairing to the address it
@@ -356,7 +393,7 @@ reuses the iOS `HubClient`, like the watch. Skills aren't offered.
 
 - **Focus**: each agent is one tvOS card (it lifts under focus), and the header and grid are separate focus
   sections, so Down from Settings reaches the cards. Focus starts on the first agent.
-- **Answering**: a card whose questions can be answered from here (the Mac's **Let iPhone & iPad answer**
+- **Answering**: a card whose questions can be answered from here (the Mac's **Answer questions**
   setting) says **Answer N questions**, and Select shows them full screen: options only, no free text. Picking an
   option of a single-choice question moves focus to the next question, then to **Send**; **Open in Rex Instead**
   is below it. Verified 2026-10-25 in the simulator by answering a two-question list from the TV.
@@ -366,7 +403,7 @@ reuses the iOS `HubClient`, like the watch. Skills aren't offered.
   `POST /v1/pair` (body `{"name"}`, no token) returns an id and a four-digit code. The Mac brings its window to
   **Devices**, where the request shows the same code with **Allow** and **Deny**; the TV polls
   `GET /v1/pair?id=…` until it gets the token (once) or a denial. Requests lapse after two minutes, and at most
-  three wait at a time.
+  three wait at a time. A Mac set to pair devices without asking allows it at once.
 - **Keep the Screen On** (Settings, on by default): no screen saver or sleep while the app is open.
 - **Icon**: a layered icon (night blue behind, radar and dino in front) and Top Shelf images, drawn by
   `make-icon.swift` into `macos/Resources/TVAssets.xcassets`.
@@ -414,7 +451,7 @@ whole list comes from the agent on this Mac: only panes on the Mac's own Rex ser
 
 Before typing, Rex must report the pane as blocked on a question and the screen must show the first question;
 answers are validated (one per question, options in range, one short line of text). A mismatch at review leaves
-the form open in Rex. Phones can answer only when **Settings → Let iPhone & iPad answer agents' questions** is
+the form open in Rex. Phones can answer only when **Settings → iPhone & iPad → Answer questions** is
 on (off by default): `POST /v1/answer?id=…` answers `403` otherwise.
 
 `hooks/claude-rex-questions` saves the full question list per pane (Rex's status carries only the first
@@ -458,10 +495,40 @@ free-text answer followed by an option.
   it asks, the conversation's latest step is the call, and its payload holds the JSON arguments
   (`{"questions":[{"question","options","is_multi_select"}]}`); Rex's `msg` must equal the first question.
 
+**Pi** (`ask_user_question` from [`@juicesharp/rpiv-ask-user-question`](https://www.npmjs.com/package/@juicesharp/rpiv-ask-user-question)),
+verified 2026-10-31 with Pi 1.4.0 and the package at 2.15.0. Pi has no question tool of its own; install the
+package (`pi install npm:@juicesharp/rpiv-ask-user-question`) and link the bridge into Pi's extensions:
+`ln -s "$PWD/hooks/pi-rex-questions.ts" ~/.pi/agent/extensions/`.
+
+- The package's form is a custom component, which Pi reports as nothing at all: the pane stays `working`. The
+  bridge reports `blocked`, `kind=question` and the first question itself (OSC 7501, Pi's root record), and puts
+  back `working` with the session name when the form closes. Pi re-reports `working` when the form mounts (the
+  package loads it lazily, up to ~0.6 s later), so the bridge repeats its report for 4 s, then every 10 s; Rex
+  doesn't touch `updated_at` for a repeated report.
+- The package emits `rpiv:ask-user:prompt` with the questions and `rpiv:ask-user:blocked` around the wait; the
+  bridge saves the list to `questions/<block>.json` (Claude's hook's shape, plus `app: "pi"`) and removes it when
+  the form closes, however it closes.
+- No keystrokes: the package takes answers on its `rpiv:ask-user:answer` event. Rex Radar writes
+  `answers/<block>.json` (`toolCallId`, `requestId`, one `{questionIndex, optionIndexes | text}` per question); the
+  bridge, polling every 0.4 s while a form is open, hands it to the package and writes the verdict to
+  `answers/<block>.result.json`, which Rex Radar waits up to 4 s for. The package refuses a partial or
+  out-of-range answer and leaves the form open; it also refuses a multi-select question with nothing ticked, so
+  the form asks for at least one there. Up to 4 questions with 2–4 options each.
+- Tested with a single-choice plus a multi-select question, answered with `RexRadar --answer <block>
+  '[{"options":[2]},{"options":[0,1]}]'`: Pi got `"Blue"` and `"Crisps, Fruit"`.
+
 For Codex and Antigravity, before typing Rex must report the question and the screen must show "Question 1/N" with the first
 question (if you've already moved on in Rex, it refuses: finish there); afterwards Rex must no longer report it.
 Free text stays single-choice only, as for Claude. Test without clicking: `RexRadar --answer <block id>
 '[{"options":[1]},{"text":"Teal"}]'`.
+
+### Closing agents
+
+Each card has ✕ in its corner (Mac window and panel, iPhone, iPad); a strip has **Close** in its context menu. On a
+card the first press arms it, showing a red **Close** for 3 s, and the second closes. Closing runs `rex block close`
+on the pane, which ends the agent whatever it was doing; Rex closes the tab with its last pane (verified
+2026-10-31). Phones can close only when **Settings → iPhone & iPad → Close agents** is on (off by default):
+`POST /v1/close?id=…` answers `403` otherwise.
 
 ### Allowing permissions
 
@@ -480,7 +547,7 @@ the agent idle. Qoder 1.1.78 puts "1. Allow once" first (then "Always allow…",
   once"), and the prompt must
   equal the one the device showed (the phone sends it back in `PermissionReply`). Afterwards the prompt must be
   gone, else it says so.
-- Phones can do it only when **Settings → Let iPhone & iPad allow or deny permissions** is on (off by default):
+- Phones can do it only when **Settings → iPhone & iPad → Allow or deny permissions** is on (off by default):
   `POST /v1/permission?id=…` answers `403` otherwise. Unlike questions, it works for remote servers too: no hook
   file is needed.
 - Test without clicking: `RexRadar --decide <block id> allow|deny`.
@@ -555,7 +622,7 @@ and **Plugins**, then takes optional arguments.
     turn (cutting off its remaining tool calls) and Alt+Enter queues a follow-up, which Pi expands at once
     ("Follow-up: Say hello to radar.") and runs after the reply. Tested with a user and a project prompt template
     and a `~/.agents/skills` skill.
-- **Phones**: only when **Settings → Let iPhone & iPad send skills to agents** is on (off by default):
+- **Phones**: only when **Settings → iPhone & iPad → Send skills** is on (off by default):
   `GET /v1/skills?id=…` and `POST /v1/skill?id=…` (body `{"name", "arguments"}`) answer `403` otherwise. Each
   `Skill` carries its `sigil` (`/` or `$`); a Mac without it means `/`. Remote servers aren't offered: their skills
   are on another machine's disk.

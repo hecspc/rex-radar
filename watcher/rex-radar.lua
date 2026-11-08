@@ -21,7 +21,7 @@ local server = rex.args.server
 local out = rex.args.out or (os.getenv("HOME") .. "/.local/state/rex-radar")
 local path = out .. "/" .. source .. ".json"
 
--- panes[block_id] = { session_id, block_id, records = { [record_id] = record }, title }
+-- panes[block_id] = { session_id, block_id, records = { [record_id] = record }, title, cwd, cwd_at }
 local panes = {}
 -- sessions[session_id] = { label, windows = { [block_id] = { window_id, window_label, index } } }
 local sessions = {}
@@ -56,6 +56,17 @@ local function load_session(session_id)
   return s
 end
 
+-- Where the pane's program runs (its foreground process's directory), so readers can tell apart
+-- agents in one session working in different checkouts. Re-read at most once a minute.
+local CWD_TTL = 60
+local function load_cwd(p)
+  if p.cwd_at and os.time() - p.cwd_at < CWD_TTL then return end
+  p.cwd_at = os.time()
+  local proc = rex.block.call(TERMINAL, "process", { session_id = p.session_id, block_id = p.block_id })
+  local cwd = proc and proc.foreground and proc.foreground.cwd
+  if type(cwd) == "string" and cwd ~= "" then p.cwd = cwd end
+end
+
 local function load_pane(session_id, block_id)
   local status = rex.block.call(TERMINAL, "program_status", { session_id = session_id, block_id = block_id })
   local records = {}
@@ -66,6 +77,7 @@ local function load_pane(session_id, block_id)
   p.records = records
   local t = rex.block.call(TERMINAL, "title", { session_id = session_id, block_id = block_id })
   p.title = t and t.title or p.title
+  if next(records) then load_cwd(p) end
   panes[block_id] = p
   return p
 end
@@ -109,6 +121,7 @@ local function snapshot()
         block_id = block_id,
         pane = w.block_label,
         title = p.title,
+        cwd = p.cwd,
         app = r.effective_app or r.app,
         state = r.state,
         kind = r.kind,
@@ -158,6 +171,7 @@ rex.on("terminal.program_status_changed", function(ctx, ev)
   p.records = p.records or {}
   p.records[ev.id or ""] = ev.record
   panes[ctx.block_id] = p
+  load_cwd(p)
   schedule()
 end)
 

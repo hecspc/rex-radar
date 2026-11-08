@@ -1,15 +1,18 @@
 import SwiftUI
 
-/// Agents from every paired Mac. iPad: a sidebar of Macs and Rex servers beside the cards;
-/// iPhone: the same as a stack.
+/// Agents from every paired Mac. iPad: the cards, with a sidebar of Macs and Rex servers hidden
+/// until you show it; iPhone: the same as a stack.
 struct AgentsScreen: View {
   @Bindable var client: HubClient
   @State private var selection: String? = AgentsScreen.all
   @State private var showSettings = false
+  /// iPad starts on the cards alone; the sidebar button shows the Macs and servers.
+  @State private var columns: NavigationSplitViewVisibility = .detailOnly
+  @Environment(\.horizontalSizeClass) private var sizeClass
   static let all = "__all__"
 
   var body: some View {
-    NavigationSplitView {
+    NavigationSplitView(columnVisibility: $columns) {
       List(selection: $selection) {
         Label("All Agents", systemImage: "dot.radiowaves.left.and.right")
           .badge(client.attentionCount)
@@ -44,8 +47,17 @@ struct AgentsScreen: View {
       }
     } detail: {
       AgentList(client: client, agents: agents, title: title)
+        .toolbar {
+          // With the sidebar hidden, its gear is too: the cards get one of their own.
+          if sizeClass == .regular && columns == .detailOnly {
+            ToolbarItem(placement: .primaryAction) {
+              Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                .accessibilityLabel("Settings")
+            }
+          }
+        }
     }
-    // iPad landscape: sidebar beside the cards; portrait: the sidebar slides over.
+    // iPad: the sidebar, once shown, sits beside the cards in landscape and slides over in portrait.
     .navigationSplitViewStyle(.balanced)
     .sheet(isPresented: $showSettings) { SettingsSheet(client: client) }
     .overlay(alignment: .bottom) {
@@ -96,13 +108,32 @@ struct AgentList: View {
               description: Text("Nothing is running in Rex on your Macs right now."))
           }
           // Portrait iPhone: one column; landscape and iPad: as many as fit.
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 520), spacing: 14, alignment: .top)], spacing: 14) {
-            ForEach(agents) { agent in
-              HeroCard(
-                row: agent.row, open: { client.open(agent) },
-                answer: client.canAnswer(agent) ? { answering = agent } : nil,
-                skill: client.canSendSkill(agent) ? { picking = agent } : nil,
-                decide: client.canDecide(agent) ? { client.decide(agent, $0) } : nil, fillHeight: true)
+          // One grid of cards, most urgent first, filling every row; resting agents follow as strips.
+          let active = agents.filter { !$0.row.isResting }
+          let resting = agents.filter(\.row.isResting)
+          if !active.isEmpty {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 520), spacing: 14, alignment: .top)], spacing: 14) {
+              ForEach(active) { agent in
+                HeroCard(
+                  row: agent.row, open: { client.open(agent) },
+                  answer: client.canAnswer(agent) ? { answering = agent } : nil,
+                  skill: client.canSendSkill(agent) ? { picking = agent } : nil,
+                  decide: client.canDecide(agent) ? { client.decide(agent, $0) } : nil,
+                  close: client.canClose(agent) ? { client.close(agent) } : nil, fillHeight: true)
+              }
+            }
+          }
+          if !resting.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+              SectionHeader(title: "Resting", count: resting.count)
+              LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 520), spacing: 10, alignment: .top)], spacing: 8) {
+                ForEach(resting) { agent in
+                  RestingStrip(
+                    row: agent.row, open: { client.open(agent) },
+                    skill: client.canSendSkill(agent) ? { picking = agent } : nil,
+                    close: client.canClose(agent) ? { client.close(agent) } : nil)
+                }
+              }
             }
           }
         }
@@ -139,64 +170,16 @@ struct AgentList: View {
   }
 }
 
-/// Before pairing: how to pair, plus a manual form.
+/// Before pairing: the ways to add a Mac.
 struct PairScreen: View {
   let client: HubClient
 
   var body: some View {
-    ScrollView {
-      GlassGroup(spacing: 16) {
-        VStack(alignment: .leading, spacing: 16) {
-          VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: "dot.radiowaves.left.and.right").font(.largeTitle).foregroundStyle(.tint)
-            Text("Rex Radar").font(.largeTitle.weight(.bold))
-            Text("Your coding agents in Rex, from your pocket. Tapping one opens it on your Mac.")
-              .foregroundStyle(.secondary)
-          }
-          PairInstructions()
-          ManualPairForm(client: client)
-        }
-        .padding(24)
-        .frame(maxWidth: 560)
-      }
-      .frame(maxWidth: .infinity)
-    }
-  }
-}
-
-struct PairInstructions: View {
-  var body: some View {
-    GlassCard(padding: 16) {
-      VStack(alignment: .leading, spacing: 8) {
-        Label("Pair with a Mac", systemImage: "qrcode.viewfinder").font(.headline)
-        Text("On the Mac, open Rex Radar → iPhone & iPad, and scan a code with this device's Camera app.")
-          .font(.callout).foregroundStyle(.secondary)
-      }
-    }
-  }
-}
-
-struct ManualPairForm: View {
-  let client: HubClient
-  @State private var host = ""
-  @State private var token = ""
-
-  var body: some View {
-    GlassCard(padding: 16) {
-      VStack(alignment: .leading, spacing: 10) {
-        Label("Or enter it by hand", systemImage: "keyboard").font(.headline)
-        TextField("Mac address (e.g. 100.101.102.103)", text: $host)
-          .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-        TextField("Token", text: $token)
-          .textInputAutocapitalization(.never).autocorrectionDisabled()
-        Button("Pair") {
-          client.pair(host: host, port: 7298, token: token, name: host)
-          host = ""
-          token = ""
-        }
-        .glassProminentButtonStyle()
-        .disabled(host.isEmpty || token.isEmpty)
-      }
+    NavigationStack {
+      AddMacForm(client: client, intro: true)
+        .frame(maxWidth: 640)
+        .frame(maxWidth: .infinity)
+        .navigationTitle("Rex Radar")
     }
   }
 }
@@ -211,16 +194,20 @@ struct SettingsSheet: View {
       Form {
         Section {
           ForEach(client.hubs) { hub in
-            VStack(alignment: .leading, spacing: 4) {
-              HStack {
-                Text(hub.name).font(.headline)
-                if hub.id == client.main?.id {
-                  Text("Main").font(.caption.weight(.semibold)).foregroundStyle(.tint)
+            NavigationLink {
+              EditMacForm(client: client, hub: hub)
+            } label: {
+              VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                  Text(hub.name).font(.headline)
+                  if hub.id == client.main?.id {
+                    Text("Main").font(.caption.weight(.semibold)).foregroundStyle(.tint)
+                  }
                 }
-              }
-              Text("\(hub.host):\(hub.port)").font(.caption.monospaced()).foregroundStyle(.secondary)
-              if let error = client.errors[hub.id] {
-                Text(error).font(.caption).foregroundStyle(.orange)
+                Text("\(hub.host):\(hub.port)").font(.caption.monospaced()).foregroundStyle(.secondary)
+                if let error = client.errors[hub.id] {
+                  Text(error).font(.caption).foregroundStyle(.orange)
+                }
               }
             }
             .swipeActions {
@@ -237,16 +224,23 @@ struct SettingsSheet: View {
         } header: {
           Text("Paired Macs")
         } footer: {
-          Text("Taps open agents in Rex on the main Mac. An agent on another Mac's own Rex opens on that Mac.")
+          Text(
+            "Taps open agents in Rex on the main Mac. An agent on another Mac's own Rex opens on that Mac. Tap a Mac "
+              + "to change its address.")
         }
         Section {
           Toggle("Keep Screen On", isOn: $keepAwake)
         } footer: {
           Text("The screen stays on while Rex Radar is open, so the device can stay up as an agent wall.")
         }
-        Section("Pair another Mac") {
-          Text("On that Mac, open Rex Radar → iPhone & iPad and scan its code with the Camera app.")
-            .font(.callout).foregroundStyle(.secondary)
+        Section {
+          NavigationLink {
+            AddMacForm(client: client) { dismiss() }
+              .navigationTitle("Add a Mac")
+              .navigationBarTitleDisplayMode(.inline)
+          } label: {
+            Label("Add a Mac", systemImage: "plus")
+          }
         }
         if let updated = client.updated {
           Section { LabeledContent("Updated", value: updated.formatted(date: .omitted, time: .standard)) }
@@ -282,7 +276,7 @@ struct AnswerSheet: View {
         .frame(maxWidth: 640)
         .frame(maxWidth: .infinity)
       }
-      .navigationTitle(agent.row.pane.session ?? "Questions")
+      .navigationTitle(agent.row.headline)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
     }
@@ -308,7 +302,7 @@ struct SkillSheet: View {
       .padding()
       .frame(maxWidth: 640)
       .frame(maxWidth: .infinity)
-      .navigationTitle(agent.row.pane.session ?? "Skills")
+      .navigationTitle(agent.row.headline)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
     }

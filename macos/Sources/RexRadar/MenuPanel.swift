@@ -7,49 +7,89 @@ struct MenuPanel: View {
   @Environment(\.openSettings) private var openSettings
   @Environment(\.dismiss) private var dismiss
 
+  /// The list's own height, measured: a ScrollView in a menu bar window has none of its own.
+  @StateObject private var list = ListHeight()
+
   var body: some View {
-    GlassEffectContainer(spacing: 12) {
-      VStack(alignment: .leading, spacing: 12) {
-        header
-        if store.creatingSession {
+    VStack(alignment: .leading, spacing: 12) {
+      // Each part has its own glass container: glass drawn by one container around the scroll
+      // view isn't clipped by it, and scrolled cards would slide over the header.
+      GlassEffectContainer { header }
+      if store.creatingSession {
+        GlassEffectContainer {
           GlassCard(padding: 16) {
             NewSessionForm(
               servers: Watchers.shared.servers, start: { try await store.newSession($0, directory: $1, server: $2) },
               cancel: { store.creatingSession = false })
           }
-        } else if let (row, draft) = store.answering {
+        }
+      } else if let (row, draft) = store.answering {
+        GlassEffectContainer {
           GlassCard(padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
-              Text("\(row.pane.session ?? "Session") · \(row.tabLabel)").font(.subheadline).foregroundStyle(.secondary)
+              Text([row.pane.session, row.headline].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).foregroundStyle(.secondary)
               QuestionsForm(draft: draft, send: { try await store.answer(row, $0) }, cancel: { store.stopAnswering() })
             }
           }
-        } else if let row = store.picking {
+        }
+      } else if let row = store.picking {
+        GlassEffectContainer {
           GlassCard(padding: 16) {
             VStack(alignment: .leading, spacing: 10) {
-              Text("\(row.pane.session ?? "Session") · \(row.tabLabel)").font(.subheadline).foregroundStyle(.secondary)
+              Text([row.pane.session, row.headline].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).foregroundStyle(.secondary)
               SkillPicker(
                 load: { try await store.skills(for: row) }, send: { try await store.sendSkill(row, $0) },
                 agentName: row.appLabel, cancel: { store.picking = nil }, listHeight: 300)
             }
           }
-        } else if let hero = store.rows.first {
-          HeroCard(
-            row: hero, open: { open(hero) }, answer: hero.questions == nil ? nil : { store.startAnswering(hero) },
-            skill: hero.takesSkills ? { store.picking = hero } : nil, decide: { store.decide(hero, $0) })
-          let rest = Array(store.rows.dropFirst())
-          if !rest.isEmpty { others(rest) }
-        } else {
-          empty
         }
-        if let message = store.openError ?? store.lastError {
-          Label(message, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red)
-        }
-        footer
+      } else if store.rows.isEmpty {
+        empty
+      } else {
+        agents
       }
-      .padding(16)
+      if let message = store.openError ?? store.lastError {
+        Label(message, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red)
+      }
+      footer
     }
-    .frame(width: 380)
+    .padding(16)
+    .frame(width: 400)
+  }
+
+  /// Every agent, as in the window: a card for each agent with something to say, most urgent
+  /// first, then a strip for each resting one.
+  private var agents: some View {
+    let resting = store.rows.filter(\.isResting)
+    let content = GlassEffectContainer(spacing: 10) {
+      VStack(alignment: .leading, spacing: 8) {
+        ForEach(store.rows.filter { !$0.isResting }) { row in
+          HeroCard(
+            row: row, open: { open(row) }, answer: row.questions == nil ? nil : { store.startAnswering(row) },
+            skill: row.takesSkills ? { store.picking = row } : nil, decide: { store.decide(row, $0) },
+            close: { store.close(row) })
+        }
+        if !resting.isEmpty {
+          SectionHeader(title: "Resting", count: resting.count).padding(.top, 10)
+          ForEach(resting) { row in
+            RestingStrip(
+              row: row, open: { open(row) }, skill: row.takesSkills ? { store.picking = row } : nil,
+              close: { store.close(row) })
+          }
+        }
+      }
+      .padding(.vertical, 2)
+      .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { list.height = $0 }
+    }
+    return ScrollView { content }
+      .frame(height: min(max(list.height, 60), maxListHeight))
+      .scrollIndicators(.automatic)
+  }
+
+  /// As tall as the screen allows, below the menu bar, leaving room for the header and footer.
+  private var maxListHeight: CGFloat {
+    let screen = NSScreen.main?.visibleFrame.height ?? 800
+    return max(240, screen - 190)
   }
 
   private var header: some View {
@@ -72,35 +112,15 @@ struct MenuPanel: View {
     }
   }
 
-  /// The other agents, one card per server.
-  private func others(_ rows: [Row]) -> some View {
-    let content = VStack(alignment: .leading, spacing: 12) {
-      ForEach(Dictionary(grouping: rows, by: \.source).sorted { $0.key < $1.key }, id: \.key) { source, rows in
-        GlassCard {
-          VStack(alignment: .leading, spacing: 4) {
-            Text(source.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary).tracking(1)
-            ForEach(rows) { row in
-              AgentRow(
-                row: row, open: { open(row) }, skill: row.takesSkills ? { store.picking = row } : nil,
-                decide: { store.decide(row, $0) })
-            }
-          }
-        }
-      }
-    }
-    // A ScrollView in a menu bar window has no height of its own: size it to its rows.
-    return ScrollView { content }
-      .frame(height: min(CGFloat(rows.count) * 58 + 40, 360))
-      .scrollIndicators(.never)
-  }
-
   private var empty: some View {
-    GlassCard {
-      VStack(alignment: .leading, spacing: 6) {
-        Label("No agents", systemImage: "dot.radiowaves.left.and.right").font(.headline)
-        Text("Start a watcher in a Rex pane:").font(.caption).foregroundStyle(.secondary)
-        Text("rex do watcher/rex-radar.lua --all source=mac")
-          .font(.caption.monospaced()).textSelection(.enabled)
+    GlassEffectContainer {
+      GlassCard {
+        VStack(alignment: .leading, spacing: 6) {
+          Label("No agents", systemImage: "dot.radiowaves.left.and.right").font(.headline)
+          Text("Start a watcher in a Rex pane:").font(.caption).foregroundStyle(.secondary)
+          Text("rex do watcher/rex-radar.lua --all source=mac")
+            .font(.caption.monospaced()).textSelection(.enabled)
+        }
       }
     }
   }
@@ -135,4 +155,10 @@ struct MenuPanel: View {
     openWindow(id: "main")
     NSApp.activate()
   }
+}
+
+/// The panel's measured list height (an ObservableObject: SwiftUI's macros need Xcode).
+@MainActor
+final class ListHeight: ObservableObject {
+  @Published var height: CGFloat = 0
 }

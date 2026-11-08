@@ -123,9 +123,9 @@ struct AgentsView: View {
         Text(row.stateLabel).font(.subheadline.weight(.semibold)).foregroundStyle(row.state.color)
         HStack(spacing: 4) {
           AgentIcon(row: row, size: 12)
-          Text(row.pane.session ?? "Session").font(.caption).lineLimit(1)
+          Text(row.headline).font(.caption).lineLimit(1)
         }
-        if let detail = row.pane.msg ?? row.topic {
+        if let detail = row.message ?? row.pane.session {
           Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
         }
       } else {
@@ -174,9 +174,9 @@ struct AgentsView: View {
           Label(row.stateLabel, systemImage: row.state.symbol).font(.headline)
           HStack(spacing: 4) {
             AgentIcon(row: row, size: 12)
-            Text(row.pane.session ?? "Session").font(.caption).lineLimit(1)
+            Text(row.headline).font(.caption).lineLimit(1)
           }
-          if let detail = row.pane.msg ?? row.topic { Text(detail).font(.caption2).lineLimit(1) }
+          if let detail = row.message ?? row.pane.session { Text(detail).font(.caption2).lineLimit(1) }
         } else {
           Label("Rex Radar", systemImage: "dot.radiowaves.left.and.right").font(.headline)
           Text(entry.connected ? "No agents" : "Open the app").font(.caption)
@@ -209,13 +209,13 @@ struct WidgetRow: View {
         HStack(spacing: 4) {
           HStack(spacing: 4) {
             AgentIcon(row: row, size: 12)
-            Text(row.pane.session ?? "Session").font(.caption.weight(.semibold)).lineLimit(1)
+            Text(row.headline).font(.caption.weight(.semibold)).lineLimit(1)
           }
-          Text(row.tabLabel).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+          Text(row.pane.session ?? "").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
           Spacer(minLength: 2)
           Text(row.stale ? "stale" : row.stateLabel).font(.caption2).foregroundStyle(row.state.color)
         }
-        if let detail = row.pane.msg ?? row.topic {
+        if let detail = row.message {
           Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
       }

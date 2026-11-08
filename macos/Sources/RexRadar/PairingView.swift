@@ -2,7 +2,7 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 /// The window's "Devices" page: a pairing QR code per address this Mac has for iPhone and iPad,
-/// and the Apple TVs asking to pair.
+/// and the devices asking to pair without one.
 struct PairingView: View {
   @ObservedObject var hub: HubServer
 
@@ -41,10 +41,11 @@ struct PairingView: View {
         }
         Text("Token: \(hub.token)").font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
         VStack(alignment: .leading, spacing: 6) {
-          Text("Connect Apple TV").font(.title2.weight(.bold))
+          Text("Connect without the camera").font(.title2.weight(.bold))
           Text(
-            "Open Rex Radar on the Apple TV and choose this Mac (or enter one of the addresses above). "
-              + "The request shows up here, with a code to check against the TV's screen."
+            "In Rex Radar on an Apple TV, iPhone or iPad, choose this Mac (or enter one of the addresses above). "
+              + "The request shows up here, with a code to check against the device's screen. On an iPhone or "
+              + "iPad, entering the address with the token above pairs at once."
           )
           .foregroundStyle(.secondary)
         }
@@ -76,10 +77,10 @@ struct PairRequestCard: View {
   var body: some View {
     GlassCard(padding: 16) {
       HStack(spacing: 16) {
-        Image(systemName: "appletv").font(.largeTitle).foregroundStyle(.tint)
+        Image(systemName: "laptopcomputer.and.iphone").font(.largeTitle).foregroundStyle(.tint)
         VStack(alignment: .leading, spacing: 4) {
           Text("“\(request.name)” wants to pair").font(.headline)
-          Text("Allow it only if the TV shows this code. It can then see your agents and open them here.")
+          Text("Allow it only if the device shows this code. It can then see your agents and open them here.")
             .font(.callout).foregroundStyle(.secondary)
         }
         Spacer()

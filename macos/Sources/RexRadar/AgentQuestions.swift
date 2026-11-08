@@ -223,3 +223,44 @@ extension Rex {
     if try waitsOnQuestion(row) { throw AnswerError.stillWaiting }
   }
 }
+
+extension Rex {
+  /// Answers Pi's questionnaire (@juicesharp/rpiv-ask-user-question) without keystrokes: writes
+  /// the answer to answers/<block>.json, which hooks/pi-rex-questions.ts in that Pi hands to the
+  /// package's rpiv:ask-user:answer event, and waits for its verdict in answers/<block>.result.json.
+  /// The package refuses anything that doesn't fit the questions and leaves its dialog open.
+  static func answerPi(_ row: Row, questions: PendingQuestions, answers: [QuestionAnswer]) throws {
+    guard let toolCallId = questions.toolUseId, try waitsOnQuestion(row) else { throw AnswerError.notWaiting }
+    let dir = Store.stateDirectory.appendingPathComponent("answers")
+    let request = dir.appendingPathComponent("\(row.pane.blockId).json")
+    let result = dir.appendingPathComponent("\(row.pane.blockId).result.json")
+    let requestId = "rex-radar-" + UUID().uuidString
+    let entries: [[String: Any]] = answers.enumerated().map { i, a in
+      var entry: [String: Any] = ["questionIndex": i]
+      if let text = a.text { entry["text"] = text } else { entry["optionIndexes"] = a.options ?? [] }
+      return entry
+    }
+    let body: [String: Any] = ["toolCallId": toolCallId, "requestId": requestId, "answers": entries]
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    try? FileManager.default.removeItem(at: result)
+    try JSONSerialization.data(withJSONObject: body).write(to: request, options: .atomic)
+
+    // The extension looks every 0.4 s while its questionnaire is open.
+    let deadline = Date().addingTimeInterval(4)
+    while Date() < deadline {
+      Thread.sleep(forTimeInterval: 0.2)
+      guard let data = try? Data(contentsOf: result),
+        let verdict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        verdict["requestId"] as? String == requestId
+      else { continue }
+      try? FileManager.default.removeItem(at: result)
+      if verdict["ok"] as? Bool == true { return }
+      switch verdict["code"] as? String {
+      case "not_found": throw AnswerError.notWaiting
+      default: throw AnswerError.invalid(verdict["reason"] as? String ?? "Pi refused the answer")
+      }
+    }
+    try? FileManager.default.removeItem(at: request)
+    throw AnswerError.stillWaiting
+  }
+}

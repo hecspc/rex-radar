@@ -56,10 +56,6 @@ struct WidgetHubs: Codable, Equatable {
       }
     }
     guard answered else { return nil }
-    return rows.sorted { a, b in
-      if a.stale != b.stale { return !a.stale }
-      if a.state != b.state { return a.state < b.state }
-      return (a.pane.session ?? "") < (b.pane.session ?? "")
-    }
+    return rows.sorted(by: Row.byUrgency)
   }
 }

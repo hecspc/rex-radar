@@ -125,3 +125,129 @@ extension Pane {
     }
   }
 }
+
+extension Row {
+  /// What tells this agent apart from the others in its session: the conversation's topic, else
+  /// the tab's name, else the pane's own label, else the agent.
+  var headline: String {
+    let session = pane.session?.lowercased()
+    let candidates = [topic, tabName, paneLabel, folder].compactMap { $0 }.filter { !$0.isEmpty }
+    return candidates.first { $0.lowercased() != session } ?? candidates.first ?? appLabel
+  }
+
+  /// The tab's name without its index.
+  var tabName: String? {
+    guard let tab = pane.tab?.trimmingCharacters(in: .whitespaces), !tab.isEmpty else { return nil }
+    return tab
+  }
+
+  /// The pane's own label, unless it's Rex's default "shell".
+  var paneLabel: String? {
+    guard let label = pane.pane?.trimmingCharacters(in: .whitespaces), !label.isEmpty, label != "shell" else { return nil }
+    return label
+  }
+
+  /// The last component of the working directory, or ~ for the home directory.
+  var folder: String? {
+    guard let cwd = pane.cwd, !cwd.isEmpty else { return nil }
+    let url = URL(fileURLWithPath: cwd)
+    let parts = url.pathComponents
+    if parts.count == 3, parts[1] == "Users" || parts[1] == "home" { return "~" }
+    return url.lastPathComponent
+  }
+
+  /// The small facts under the headline that tell agents in one session apart, each with a symbol:
+  /// branch, folder (when it isn't the session's name), and where it sits (tab › pane) unless the
+  /// headline already says it. The session itself is added when `session` is true.
+  func facts(session: Bool) -> [(symbol: String, text: String)] {
+    var facts: [(String, String)] = []
+    if session, let name = pane.session { facts.append(("square.stack", name)) }
+    if let branch = pane.branch { facts.append(("arrow.triangle.branch", branch)) }
+    if let folder, folder.lowercased() != pane.session?.lowercased(), folder != headline {
+      facts.append(("folder", folder))
+    }
+    let place = [tabName, paneLabel].compactMap { $0 }.filter { $0 != headline }
+    if !place.isEmpty { facts.append(("rectangle.split.2x1", place.joined(separator: " › "))) }
+    return facts
+  }
+
+  /// Since when Rex reports the pane in its state.
+  var since: Date? { pane.updatedAt.flatMap(Row.parseDate) }
+
+  private static func parseDate(_ text: String) -> Date? {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = formatter.date(from: text) { return date }
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: text.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression))
+  }
+
+  /// "now", "3m", "2h", "4d": how long it has been in its state.
+  func elapsed(at now: Date = .now) -> String? {
+    guard let since else { return nil }
+    let seconds = max(0, now.timeIntervalSince(since))
+    switch seconds {
+    case ..<60: return "now"
+    case ..<3600: return "\(Int(seconds / 60))m"
+    case ..<86400: return "\(Int(seconds / 3600))h"
+    default: return "\(Int(seconds / 86400))d"
+    }
+  }
+
+  /// What the agent says beyond the headline: its message (Pi's is the session name, which the
+  /// headline already shows).
+  var message: String? {
+    guard let msg = pane.msg?.trimmingCharacters(in: .whitespacesAndNewlines), !msg.isEmpty, msg != headline, msg != topic
+    else { return nil }
+    return msg
+  }
+}
+
+/// Rows grouped for display by what they need from you, in this order: agents that need you,
+/// agents just done, agents working, and resting ones (idle, done for a while, stale), which show as
+/// one-line strips. Each keeps the rows' order (most urgent, then most recent, first). Sessions
+/// aren't grouped: each card and strip names its own.
+struct RowSection<Item>: Identifiable {
+  enum Kind: Int, CaseIterable {
+    case needsYou, done, working, resting
+
+    var title: String {
+      switch self {
+      case .needsYou: "Needs you"
+      case .done: "Done"
+      case .working: "Working"
+      case .resting: "Resting"
+      }
+    }
+
+    init(_ row: Row) {
+      if row.isResting {
+        self = .resting
+      } else if row.state.needsAttention || row.permission != nil || row.questions != nil {
+        self = .needsYou
+      } else if row.state == .done {
+        self = .done
+      } else {
+        self = .working
+      }
+    }
+  }
+
+  var kind: Kind
+  var items: [Item]
+  var id: Int { kind.rawValue }
+
+  /// "3 need you · 2 done · 1 working · 7 resting": how many agents in each state, for a title.
+  static func summary(_ items: [Item], row: (Item) -> Row) -> String {
+    let counts = Dictionary(grouping: items) { Kind(row($0)) }.mapValues(\.count)
+    return Kind.allCases.compactMap { kind in
+      counts[kind].map { "\($0) \(kind == .needsYou ? "need you" : kind.title.lowercased())" }
+    }.joined(separator: " · ")
+  }
+
+  /// The sections that have rows, in order.
+  static func sections(_ items: [Item], row: (Item) -> Row) -> [RowSection] {
+    let byKind = Dictionary(grouping: items) { Kind(row($0)) }
+    return Kind.allCases.compactMap { kind in byKind[kind].map { RowSection(kind: kind, items: $0) } }
+  }
+}

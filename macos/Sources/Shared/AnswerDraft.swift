@@ -32,6 +32,7 @@ final class AnswerDraft: ObservableObject {
       if !q.isMulti, !text.isEmpty {
         result.append(.text(text))
       } else if q.isMulti {
+        if picks[i].isEmpty && questions.multiNeedsPick { return nil }
         result.append(.options(Array(picks[i])))
       } else if let pick = picks[i].first {
         result.append(.option(pick))

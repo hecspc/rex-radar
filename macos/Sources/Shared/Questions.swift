@@ -1,8 +1,9 @@
 import Foundation
 
 /// The question list an agent is asking in a pane: Claude Code's or Qoder's AskUserQuestion (as
-/// the hooks/claude-rex-questions hook saves it), Codex's request_user_input or Antigravity's
-/// ask_question (both read from the agent's own records on the Mac).
+/// the hooks/claude-rex-questions hook saves it), Pi's ask_user_question (as hooks/pi-rex-questions.ts
+/// saves it), Codex's request_user_input or Antigravity's ask_question (both read from the agent's
+/// own records on the Mac).
 struct PendingQuestions: Codable, Hashable {
   var toolUseId: String?
   var askedAt: String?
@@ -11,12 +12,17 @@ struct PendingQuestions: Codable, Hashable {
   var app: String?
 
   /// Agents whose question forms were checked to take the keys Rex.answer types: Claude Code
-  /// 2.1.310, Codex 0.164.0, Antigravity 1.4.7 and Qoder 1.1.78, on 2026-10-25.
-  static let apps: Set<String> = ["claude-code", "codex", "antigravity", "qoder"]
+  /// 2.1.310, Codex 0.164.0, Antigravity 1.4.7 and Qoder 1.1.78, on 2026-10-25. Pi (1.4.0 with
+  /// @juicesharp/rpiv-ask-user-question 2.15.0) takes no keys: its answer goes through the bridge.
+  static let apps: Set<String> = ["claude-code", "codex", "antigravity", "qoder", "pi"]
 
-  /// Agents whose question lists come from the hooks/claude-rex-questions hook file: Qoder runs
-  /// Claude Code's hooks with the same AskUserQuestion input.
-  static let hookApps: Set<String> = ["claude-code", "qoder"]
+  /// Agents whose question lists come from a file in questions/: Claude Code's hook
+  /// (hooks/claude-rex-questions), which Qoder runs too with the same AskUserQuestion input, and
+  /// Pi's extension (hooks/pi-rex-questions.ts).
+  static let hookApps: Set<String> = ["claude-code", "qoder", "pi"]
+
+  /// Whether a multi-select question needs a tick: Pi's questionnaire refuses an empty answer.
+  var multiNeedsPick: Bool { app == "pi" }
 
   var agentName: String { Pane.appLabel(app ?? "claude-code") }
 }
@@ -81,7 +87,9 @@ extension PendingQuestions {
         guard Set(picked).count == picked.count, picked.allSatisfy({ (0..<q.options.count).contains($0) }) else {
           throw AnswerError.invalid("option out of range")
         }
-        guard q.isMulti ? true : picked.count == 1 else { throw AnswerError.invalid("pick one option") }
+        guard q.isMulti ? (!multiNeedsPick || !picked.isEmpty) : picked.count == 1 else {
+          throw AnswerError.invalid(q.isMulti ? "pick at least one option" : "pick one option")
+        }
       }
     }
   }

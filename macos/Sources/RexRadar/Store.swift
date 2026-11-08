@@ -96,10 +96,13 @@ final class Store: ObservableObject {
     return nil
   }
 
-  let directory: URL = {
+  /// Where the watchers, hooks and Pi's extension keep their files.
+  nonisolated static let stateDirectory: URL = {
     if let dir = ProcessInfo.processInfo.environment["REX_RADAR_DIR"] { return URL(fileURLWithPath: dir) }
     return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/state/rex-radar")
   }()
+
+  let directory = Store.stateDirectory
 
   private var task: Task<Void, Never>?
 
@@ -110,6 +113,34 @@ final class Store: ObservableObject {
         try? await Task.sleep(for: .seconds(2))
       }
     }
+  }
+
+  /// Closes the row's pane in Rex, ending its agent (see Rex.close). Throws on failure.
+  func close(_ row: Row) async throws {
+    try await Task.detached { try Rex.close(row) }.value
+    if answering?.row.id == row.id { answering = nil }
+    if picking?.id == row.id { picking = nil }
+    reload()
+  }
+
+  /// The same from a button here: a failure shows under the list, like a failed open.
+  func close(_ row: Row) {
+    openError = nil
+    Task {
+      do { try await close(row) } catch { openError = error.localizedDescription }
+    }
+  }
+
+  /// Done panes opened from here, by row and the status update they were opened at: they count
+  /// as idle until the agent reports again.
+  private var seenDone: [String: String] = [:]
+
+  /// Done for long enough, or opened from here since: idle (see Row.doneFadesAfter).
+  private func fadeDone(_ pane: inout Pane, id: String) {
+    guard pane.state == "done" else { return }
+    let opened = seenDone[id] == (pane.updatedAt ?? "")
+    let old = Row(pane: pane, source: "", stale: false).since.map { Date().timeIntervalSince($0) > Row.doneFadesAfter } ?? false
+    if opened || old { pane.state = "idle" }
   }
 
   /// Most urgent state among live panes, for the menu bar icon.
@@ -123,6 +154,7 @@ final class Store: ObservableObject {
   /// Shows the row's pane in the Rex app, off the main thread (it runs the rex CLI).
   func open(_ row: Row) {
     openError = nil
+    if row.pane.state == "done" { seenDone[row.id] = row.pane.updatedAt ?? "" }
     let label = clientLabel
     Task.detached { [weak self] in
       do {
@@ -211,7 +243,10 @@ final class Store: ObservableObject {
         let stale = Date().timeIntervalSince(s.writtenAt) > 2 * s.heartbeatSeconds
         sources.append(s.source)
         rows += s.panes.map {
-          var row = Row(pane: $0, source: s.source, server: s.server, stale: stale, questions: questions(for: $0, server: s.server))
+          var pane = $0
+          if s.server == nil, let cwd = pane.cwd { pane.branch = GitBranch.of(cwd) }
+          fadeDone(&pane, id: s.source + "/" + pane.blockId)
+          var row = Row(pane: pane, source: s.source, server: s.server, stale: stale, questions: questions(for: pane, server: s.server))
           row.permission = stale ? nil : permission(for: row)
           if row.questions == nil { row.questions = agentQuestions(for: row) }
           return row
@@ -220,15 +255,10 @@ final class Store: ObservableObject {
         errors.append("\(file.lastPathComponent): \(error.localizedDescription)")
       }
     }
-    self.rows = rows.sorted { a, b in
-      if a.stale != b.stale { return !a.stale }
-      if a.state != b.state { return a.state < b.state }
-      if a.source != b.source { return a.source < b.source }
-      if a.pane.session != b.pane.session { return (a.pane.session ?? "") < (b.pane.session ?? "") }
-      return (a.pane.tabIndex ?? 0) < (b.pane.tabIndex ?? 0)
-    }
+    self.rows = rows.sorted(by: Row.byUrgency)
     let live = Set(rows.map { $0.id + "@" + ($0.pane.updatedAt ?? "") })
     screenPrompts = screenPrompts.filter { live.contains($0.key) }
+    seenDone = seenDone.filter { live.contains($0.key + "@" + $0.value) }
     agentQuestions = agentQuestions.filter { live.contains($0.key) }
     self.sources = sources.sorted()
     self.lastError = errors.first
