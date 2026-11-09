@@ -20,6 +20,27 @@ struct AgentsResponse: Codable {
   var servers: [String]? = nil
 }
 
+extension Row {
+  /// The rows of several Macs as one list, most urgent first, each with the index of the Mac it
+  /// came from. Macs come in order of preference, the main one first. A Mac can watch another's Rex
+  /// as a remote server, so the same pane can arrive twice; Rex's block IDs are unique across
+  /// servers, so it shows once: live before stale, then the Mac running that Rex (only it answers
+  /// questions, sends skills and reads the branch), then the earlier Mac. When `labelled`, a pane on
+  /// a Mac's own Rex is labelled with that Mac's name as paired here.
+  static func merged(_ macs: [(name: String, rows: [Row])], labelled: Bool) -> [(mac: Int, row: Row)] {
+    func rank(_ row: Row) -> Int { (row.stale ? 2 : 0) + (row.server == nil ? 0 : 1) }
+    var kept: [String: (mac: Int, row: Row)] = [:]
+    for (index, mac) in macs.enumerated() {
+      for var row in mac.rows {
+        if labelled, row.server == nil { row.machine = mac.name }
+        if let other = kept[row.pane.blockId], rank(other.row) <= rank(row) { continue }
+        kept[row.pane.blockId] = (index, row)
+      }
+    }
+    return kept.values.sorted { Row.byUrgency($0.row, $1.row) }
+  }
+}
+
 /// POST /v1/session: start the agent (a SkillAgent's raw value) in a new Rex session in the folder.
 struct NewSessionRequest: Codable {
   var agent: String

@@ -362,9 +362,7 @@ struct HeroCard: View {
   @StateObject private var hover = ViewFlag()
 
   private var facts: [(symbol: String, text: String)] {
-    var facts = row.facts(session: showSession)
-    if row.server != nil { facts.append(("server.rack", row.source)) }
-    return facts
+    row.facts(session: showSession) + row.machineFacts
   }
 
   var body: some View {
@@ -443,7 +441,7 @@ struct RestingStrip: View {
 
   private var place: String? {
     let fact = showSession ? row.pane.session : row.facts(session: false).first?.text
-    return [fact, row.server == nil ? nil : row.source].compactMap { $0 }.joined(separator: " · ")
+    return [fact, row.machineLabel].compactMap { $0 }.joined(separator: " · ")
   }
 
   var body: some View {

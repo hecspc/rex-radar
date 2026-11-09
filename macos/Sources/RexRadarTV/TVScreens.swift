@@ -155,7 +155,7 @@ struct TVAgentCard: View {
   let select: () -> Void
 
   private var facts: [(symbol: String, text: String)] {
-    row.facts(session: true) + (row.server == nil ? [] : [("server.rack", row.source)])
+    row.facts(session: true) + row.machineFacts
   }
 
   var body: some View {
@@ -217,7 +217,7 @@ struct TVRestingStrip: View {
 
   private var place: String? {
     let fact = showSession ? row.pane.session : row.facts(session: false).first?.text
-    let text = [fact, row.server == nil ? nil : row.source].compactMap { $0 }.joined(separator: " · ")
+    let text = [fact, row.machineLabel].compactMap { $0 }.joined(separator: " · ")
     return text.isEmpty ? nil : text
   }
 

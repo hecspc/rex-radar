@@ -353,6 +353,11 @@ phone open agents in the Mac's Rex.
   finds; the widget and the watch get it from the app. Tailscale addresses (`100.64.0.0/10`) and names are kept,
   since they work away from home. The Apple TV does the same. Verified 2026-10-26 in the iPhone simulator
   (iOS 27): paired with the Mac's old Wi-Fi address, it moved to the Ethernet one within seconds.
+- **Several Macs**: agents from every paired Mac show in one list. A Mac can watch another's Rex as a remote
+  server, so the same pane can arrive twice; it shows once (Rex's block IDs are unique across servers), the copy
+  from the Mac running that Rex winning, since only it answers questions, sends skills and reads the branch. With
+  more than one Mac paired, each agent names its Mac as paired on the phone, not the server name its Rex gives
+  itself (`mac`). The widget, watch and Apple TV do the same.
 - **Local network**: iOS asks once to allow local network access; the app can't reach the Mac on the LAN until it's
   allowed. Over Tailscale the hub is reachable from anywhere, encrypted.
 - **Widget** (Home Screen small/medium/large, Lock Screen circular/rectangular/inline): the app shares its

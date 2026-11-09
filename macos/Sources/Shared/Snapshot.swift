@@ -86,8 +86,16 @@ struct Row: Codable, Identifiable, Hashable {
   var questions: PendingQuestions?
   /// The permission it waits on, when it's one Rex Radar can allow or deny.
   var permission: PendingPermission?
+  /// The Mac it runs on, as this device paired it: set by a device paired with several Macs.
+  var machine: String? = nil
 
   var id: String { source + "/" + pane.blockId }
+  /// Where it runs, when that's worth saying: its Mac, or the remote server it was seen through.
+  var machineLabel: String? { machine ?? (server == nil ? nil : source) }
+  /// The same as a card's fact, after the others.
+  var machineFacts: [(symbol: String, text: String)] {
+    machineLabel.map { [(machine == nil ? "server.rack" : "desktopcomputer", $0)] } ?? []
+  }
   var state: AgentState { AgentState(pane.state) }
 
   /// A finished agent stays `done` in Rex until its next run; after this long, or once you open

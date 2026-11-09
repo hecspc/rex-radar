@@ -33,12 +33,11 @@ struct WidgetHubs: Codable, Equatable {
     return (try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])) != nil
   }
 
-  /// Fetches every Mac's agents and merges them, the main Mac's first; nil when none answered.
+  /// Fetches every Mac's agents and merges them (Row.merged), the main Mac's first; nil when none answered.
   func fetchRows() async -> [Row]? {
     let ordered = hubs.filter(\.isMain) + hubs.filter { !$0.isMain }
     var answered = false
-    var seen = Set<String>()
-    var rows: [Row] = []
+    var macs: [(name: String, rows: [Row])] = []
     for hub in ordered {
       guard let url = URL(string: "http://\(hub.host):\(hub.port)/v1/agents") else { continue }
       var request = URLRequest(url: url, timeoutInterval: 8)
@@ -50,12 +49,9 @@ struct WidgetHubs: Codable, Equatable {
       decoder.dateDecodingStrategy = .iso8601
       guard let agents = try? decoder.decode(AgentsResponse.self, from: data) else { continue }
       answered = true
-      for row in agents.rows {
-        let key = (row.server ?? "\(hub.name)/\(row.source)") + "|" + row.pane.blockId
-        if seen.insert(key).inserted { rows.append(row) }
-      }
+      macs.append((hub.name, agents.rows))
     }
     guard answered else { return nil }
-    return rows.sorted(by: Row.byUrgency)
+    return Row.merged(macs, labelled: hubs.count > 1).map(\.row)
   }
 }

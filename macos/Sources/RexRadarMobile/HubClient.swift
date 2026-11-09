@@ -58,19 +58,12 @@ final class HubClient {
 
   var main: Hub? { hubs.first { $0.id == mainID } ?? hubs.first }
 
-  /// Every agent from every Mac, most urgent first. When two Macs watch the same Rex server,
-  /// the main Mac's copy wins.
+  /// Every agent from every Mac, most urgent first, each pane once (see Row.merged).
   var agents: [Agent] {
-    var seen = Set<String>()
-    var result: [Agent] = []
     let mainFirst = hubs.filter { $0.id == main?.id } + hubs.filter { $0.id != main?.id }
-    for hub in mainFirst {
-      for row in agentsByHub[hub.id] ?? [] {
-        let agent = Agent(hubID: hub.id, hubName: hub.name, row: row)
-        if seen.insert(agent.serverKey + "|" + row.pane.blockId).inserted { result.append(agent) }
-      }
+    return Row.merged(mainFirst.map { ($0.name, agentsByHub[$0.id] ?? []) }, labelled: hubs.count > 1).map {
+      Agent(hubID: mainFirst[$0.mac].id, hubName: mainFirst[$0.mac].name, row: $0.row)
     }
-    return result.sorted { Row.byUrgency($0.row, $1.row) }
   }
 
   var servers: [(key: String, label: String)] {
