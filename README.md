@@ -389,6 +389,13 @@ phone open agents in the Mac's Rex.
   `group.house.milapan.rex-radar.watch`.
 - Verified 2026-10-25 on an Apple Watch Series 10 (watchOS 27.0.1): list, agent page and answering. Install it
   on a real watch after pairing it in Xcode 27's DeviceHub (+ → Pair Nearby Device) with Developer Mode on.
+- **Updating the iPhone app removes the watch app** when it's signed by a free (Personal Team) profile. iOS hands
+  the embedded watch app to the watch, which refuses it: "authorized by a free provisioning profile, but apps
+  validated by those are not allowed to be installed from this source" (`MIInstallerErrorDomain` 111), and the
+  Watch app's **Install** button just flips back. Install it straight onto the watch instead, after each iPhone
+  install: `xcrun devicectl device install app --device <watch udid> <…>/Release-watchos/RexRadarWatch.app`. The
+  watch must show as available in `devicectl list devices` (awake, unlocked, on the Mac's network). Seen
+  2026-11-08 with Xcode 27.2, iOS 27.2 and watchOS 27.2.
 
 ### Apple TV
 
